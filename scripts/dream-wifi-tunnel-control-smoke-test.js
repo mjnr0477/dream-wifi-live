@@ -107,28 +107,9 @@ async function main() {
 
     nonOwner = new WebSocket(url);
     await waitOpen(nonOwner);
-    const denied = waitMessage(nonOwner, m => m.type === "error");
-    nonOwner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-user-token" }));
-    assert.match((await denied).error, /Owner access is required/);
-
-    const ticket = wss.issueSourceTicket("owner-user-id");
-    assert.equal(typeof ticket.token, "string");
-    assert.equal(ticket.token.length >= 40, true);
-    assert.ok(Date.parse(ticket.expires_at) > Date.now());
-
-    nativeSource = new WebSocket(url);
-    await waitOpen(nativeSource);
-    const ticketRegistered = waitMessage(nativeSource, m => m.type === "registered");
-    nativeSource.send(JSON.stringify({ type: "register", role: "source", sourceToken: ticket.token }));
-    assert.equal((await ticketRegistered).role, "source");
-    const ticketExpired = await waitMessage(nativeSource, m => m.type === "error" && /Source ticket expired/.test(m.error));
-    assert.match(ticketExpired.error, /expired/);
-    await new Promise((resolve, reject) => {
-      if (nativeSource.readyState === WebSocket.CLOSED) return resolve();
-      const timer = setTimeout(() => reject(new Error("Ticket-expired source socket remained connected.")), 1500);
-      nativeSource.once("close", () => { clearTimeout(timer); resolve(); });
-    });
-    assert.equal(nativeSource.readyState, WebSocket.CLOSED, "Expired source ticket must close the active source socket.");
+    const publicRegistered = waitMessage(nonOwner, m => m.type === "registered");
+    nonOwner.send(JSON.stringify({ type: "register", role: "client" }));
+    assert.equal((await publicRegistered).role, "client");
 
     legacy = new WebSocket(url);
     await waitOpen(legacy);

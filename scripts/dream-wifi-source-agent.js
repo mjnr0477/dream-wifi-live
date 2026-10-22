@@ -15,6 +15,13 @@ const tunnelUrl = String(process.env.DREAM_WIFI_TUNNEL_URL || "").trim();
 const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
 const configuredSourceName = String(process.env.DREAM_WIFI_SOURCE_NAME || "").trim().slice(0, 80);
 const sourceId = String(process.env.DREAM_WIFI_SOURCE_ID || os.hostname() || "source").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80) || "source";
+const sourceLatitude = process.env.DREAM_WIFI_SOURCE_LATITUDE === undefined || process.env.DREAM_WIFI_SOURCE_LATITUDE === "" ? null : Number(process.env.DREAM_WIFI_SOURCE_LATITUDE);
+const sourceLongitude = process.env.DREAM_WIFI_SOURCE_LONGITUDE === undefined || process.env.DREAM_WIFI_SOURCE_LONGITUDE === "" ? null : Number(process.env.DREAM_WIFI_SOURCE_LONGITUDE);
+if ((sourceLatitude !== null && (!Number.isFinite(sourceLatitude) || sourceLatitude < -90 || sourceLatitude > 90)) ||
+    (sourceLongitude !== null && (!Number.isFinite(sourceLongitude) || sourceLongitude < -180 || sourceLongitude > 180))) {
+  console.error("Source latitude/longitude must be valid decimal coordinates.");
+  process.exit(1);
+}
 const MAX_CHUNK = 12 * 1024;
 const MAX_WS_BUFFERED_BYTES = 1024 * 1024;
 const streams = new Map();
@@ -63,6 +70,17 @@ async function detectSourceName() {
     } catch (_) {}
   }
   return String(os.hostname() || "Dream Wi-Fi source").trim().slice(0, 80) || "Dream Wi-Fi source";
+}
+async function detectSourceCoordinates() {
+  if (sourceLatitude !== null && sourceLongitude !== null) return { latitude: sourceLatitude, longitude: sourceLongitude };
+  try {
+    const { stdout } = await execFileAsync("termux-location", ["-p", "network", "-r", "once"], { timeout: 8000, maxBuffer: 8192 });
+    const location = JSON.parse(stdout);
+    const latitude = Number(location.latitude), longitude = Number(location.longitude);
+    if (Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+        Number.isFinite(longitude) && longitude >= -180 && longitude <= 180) return { latitude, longitude };
+  } catch (_) {}
+  return { latitude: null, longitude: null };
 }
 function send(payload) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
@@ -217,12 +235,12 @@ function connect() {
         currentSocket.terminate();
       }
     }, 25000);
-    detectSourceName().then(sourceName => {
+    Promise.all([detectSourceName(), detectSourceCoordinates()]).then(([sourceName, location]) => {
       if (stopped || currentSocket !== socket || currentSocket.readyState !== WebSocket.OPEN) return;
-      currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName }));
+      currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName, latitude: location.latitude, longitude: location.longitude }));
     }).catch(() => {
       if (!stopped && currentSocket === socket && currentSocket.readyState === WebSocket.OPEN) {
-        currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName: os.hostname() }));
+        currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName: os.hostname(), latitude: sourceLatitude, longitude: sourceLongitude }));
       }
     });
   });

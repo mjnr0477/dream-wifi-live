@@ -56,8 +56,7 @@ async function main() {
   let sourceA, sourceB, owner;
   try {
     sourceA = await registerSource(url, "source-a", "Local test router");
-    const sourceTicket = wss.issueSourceTicket("owner-1");
-    sourceB = await registerSource(url, "source-b", "Remote test gateway", sourceTicket.token);
+    sourceB = await registerSource(url, "source-b", "Remote test gateway");
     owner = new WebSocket(url);
     await waitOpen(owner);
     const registered = waitMessage(owner, message => message.type === "registered" && message.role === "owner");

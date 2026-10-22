@@ -6,6 +6,8 @@ const { WebSocket, WebSocketServer } = require("ws");
 const MAX_MESSAGE_BYTES = 24 * 1024;
 const MAX_TCP_CHUNK_BYTES = 12 * 1024;
 const MAX_STREAMS_PER_OWNER = 8;
+const MAX_CLIENTS_PER_IP = 12;
+const connectionsPerIp = new Map();
 const MAX_UDP_ASSOCIATIONS_PER_OWNER = 8;
 const MAX_UDP_DATAGRAM_BYTES = 8192;
 const UDP_IDLE_TIMEOUT_MS = 60000;
@@ -33,13 +35,7 @@ function decodeChunk(value) {
 }
 
 function attachDreamWifiTunnel(server, options = {}) {
-  const supabaseAuth = options.supabaseAuth;
-  const isOwnerAccount = options.isOwnerAccount;
   const sourceToken = String(options.sourceToken || "");
-  const sourceTickets = new Map();
-  const SOURCE_TICKET_TTL_MS = Number.isFinite(options.sourceTicketTtlMs) && options.sourceTicketTtlMs > 0
-    ? Math.min(options.sourceTicketTtlMs, 12 * 60 * 60 * 1000)
-    : 12 * 60 * 60 * 1000;
   const owners = new Set();
   const sources = new Map();
   const pendingPings = new Map();
@@ -68,7 +64,9 @@ function attachDreamWifiTunnel(server, options = {}) {
       id: socket.dreamSourceId,
       name: socket.dreamSourceName,
       connected: socket.readyState === WebSocket.OPEN,
-      connectedAt: socket.dreamSourceConnectedAt
+      connectedAt: socket.dreamSourceConnectedAt,
+      latitude: socket.dreamSourceLatitude,
+      longitude: socket.dreamSourceLongitude
     };
   }
   function sourceListForOwner(ownerSocket) {
@@ -88,30 +86,8 @@ function attachDreamWifiTunnel(server, options = {}) {
     }
     return sourceListForOwner(ownerSocket).map(item => sources.get(item.id)).find(Boolean) || null;
   }
-  function issueSourceTicket(ownerId) {
-    const owner = String(ownerId || "").trim();
-    if (!owner) throw new Error("A verified owner identity is required.");
-    const now = Date.now();
-    for (const [token, entry] of sourceTickets.entries()) {
-      if (entry.expiresAt <= now) sourceTickets.delete(token);
-    }
-    const token = crypto.randomBytes(32).toString("base64url");
-    const expiresAt = now + SOURCE_TICKET_TTL_MS;
-    sourceTickets.set(token, { ownerId: owner, expiresAt });
-    return { token, expires_at: new Date(expiresAt).toISOString() };
-  }
   function sourceAuthKind(candidate) {
     const supplied = String(candidate || "");
-    if (!supplied) return null;
-    const now = Date.now();
-    for (const [token, entry] of sourceTickets.entries()) {
-      if (entry.expiresAt <= now) {
-        sourceTickets.delete(token);
-        continue;
-      }
-      if (safeEqual(supplied, token)) return { kind: "ticket", ownerId: entry.ownerId, expiresAt: entry.expiresAt };
-    }
-    // Static source agents and ticket-authenticated native sources may coexist.
     return sourceToken && safeEqual(supplied, sourceToken) ? { kind: "static", ownerId: null } : null;
   }
   function broadcastSourceState() {
@@ -155,6 +131,11 @@ function attachDreamWifiTunnel(server, options = {}) {
   }
 
   wss.on("connection", (socket) => {
+    const remoteIp = String(socket._socket && socket._socket.remoteAddress || "unknown");
+    const activeForIp = connectionsPerIp.get(remoteIp) || 0;
+    if (activeForIp >= MAX_CLIENTS_PER_IP) { socket.close(1013, "Connection limit reached"); return; }
+    connectionsPerIp.set(remoteIp, activeForIp + 1);
+    socket.dreamRemoteIp = remoteIp;
     socket.dreamRole = null;
     socket.registering = false;
 
@@ -204,6 +185,8 @@ function attachDreamWifiTunnel(server, options = {}) {
           socket.dreamSourceAuth = sourceAuth.kind;
           socket.dreamSourceOwnerId = sourceAuth.ownerId;
           socket.dreamSourceConnectedAt = new Date().toISOString();
+          socket.dreamSourceLatitude = Number.isFinite(Number(message.latitude)) && message.latitude !== null && message.latitude !== "" && Number(message.latitude) >= -90 && Number(message.latitude) <= 90 ? Number(message.latitude) : null;
+          socket.dreamSourceLongitude = Number.isFinite(Number(message.longitude)) && message.longitude !== null && message.longitude !== "" && Number(message.longitude) >= -180 && Number(message.longitude) <= 180 ? Number(message.longitude) : null;
           if (sourceAuth.kind === "ticket" && Number.isFinite(sourceAuth.expiresAt)) {
             const remainingMs = Math.max(0, sourceAuth.expiresAt - Date.now());
             socket.dreamSourceTicketTimer = setTimeout(() => {
@@ -220,30 +203,12 @@ function attachDreamWifiTunnel(server, options = {}) {
           return;
         }
 
-        if (message.role === "owner") {
-          const accessToken = typeof message.accessToken === "string" ? message.accessToken.trim() : "";
-          if (!accessToken || !supabaseAuth || typeof isOwnerAccount !== "function") {
-            reject(socket, "Owner authentication is unavailable.");
-            return;
-          }
-          let ownerId = "";
-          try {
-            const result = await supabaseAuth.auth.getUser(accessToken);
-            const user = result && result.data ? result.data.user : null;
-            if (result.error || !user || !isOwnerAccount({ email: user.email })) {
-              reject(socket, "Owner access is required.");
-              return;
-            }
-            ownerId = String(user.id || "");
-          } catch (_) {
-            reject(socket, "Owner authentication failed.");
-            return;
-          }
+        if (message.role === "client" || message.role === "owner") {
           if (socket.readyState !== WebSocket.OPEN) return;
           socket.dreamRole = "owner";
-          socket.dreamOwnerId = ownerId;
+          socket.dreamOwnerId = null;
           owners.add(socket);
-          send(socket, { type: "registered", role: "owner" });
+          send(socket, { type: "registered", role: "client" });
           send(socket, { type: "source-state", connected: sourceListForOwner(socket).length > 0 });
           send(socket, { type: "source-list", sources: sourceListForOwner(socket) });
           return;
@@ -384,10 +349,11 @@ function attachDreamWifiTunnel(server, options = {}) {
     });
 
     socket.on("close", () => {
-      if (socket.dreamSourceTicketTimer) clearTimeout(socket.dreamSourceTicketTimer);
       clearPingsFor(socket);
       closeStreamsFor(socket, "endpoint-disconnected");
       owners.delete(socket);
+      const remainingForIp = Math.max(0, (connectionsPerIp.get(socket.dreamRemoteIp) || 1) - 1);
+      if (remainingForIp) connectionsPerIp.set(socket.dreamRemoteIp, remainingForIp); else connectionsPerIp.delete(socket.dreamRemoteIp);
       if (socket.dreamRole === "source" && sources.get(socket.dreamSourceId) === socket) {
         sources.delete(socket.dreamSourceId);
         broadcastSourceState();
@@ -396,7 +362,6 @@ function attachDreamWifiTunnel(server, options = {}) {
     socket.on("error", () => {});
   });
 
-  wss.issueSourceTicket = issueSourceTicket;
   wss.sourceConnected = sourceConnected;
   wss.getSources = () => [...sources.values()].map(sourceDetails);
   return wss;

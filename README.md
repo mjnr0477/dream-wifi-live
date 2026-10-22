@@ -1,50 +1,36 @@
 # Dream Wi-Fi
 
-Standalone Dream Wi-Fi / Dream Tunnel service, separated from Dream Education.
+Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education and Supabase.
 
-## Status
+## Public discovery
+- The web app requests the visitor's location and searches a radius up to 300 km.
+- No owner login, Supabase account, Supabase keys, or database is required for public clients.
+- The directory records participating source devices that have reported coordinates. It cannot scan all routers over 300 km or discover every nearby SSID from a normal browser.
+- Sources appear online only while connected. An offline source is not connectable.
+- A source can relay traffic only while online and explicitly configured to share its network. The tunnel is a bounded HTTP/HTTPS relay, not a full-device VPN.
+- Public tunnel clients have per-IP connection limits and per-client stream limits. Source devices still require the server-only source token.
 
-This is a separated prototype. It is **not yet proven to provide remote internet through Quant end-to-end**. Do not advertise paid access or promise internet availability until the source device, tunnel, remote client, and provider permissions have all been verified.
+## Environment
+Server:
+- `DREAM_WIFI_SOURCE_TOKEN`: long random secret used only by authorized source agents. Never put it in browser code.
+- `DREAM_WIFI_DATA_DIR`: optional writable directory for the source directory JSON file. Point this to a persistent disk mount to retain reports across host restarts/deploys.
+- `PORT`: provided by the host.
 
-## Architecture
-
-- `server.js`: independent Express service and authenticated WebSocket tunnel.
-- `scripts/dream-wifi-source-agent.js`: authorized source-side connector.
-- `scripts/dream-wifi-proxy-client.js`: local SOCKS5 client for compatible applications; it is not a full-device Android VPN.
-- `public/`: standalone interface.
-- `android/dream-wifi-vpn/`: native Android client source, if included in this repository.
-
-Only connect networks and devices you own or are explicitly authorized to use. The relay restricts TCP to ports 80/443 and blocks private/local destinations.
-
-## Required environment
-
-Copy `.env.example` to `.env` for local development. Never commit real credentials.
-
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` — server-only credential for the source registry; never expose it to the browser
-- `DREAM_WIFI_OWNER_EMAIL` — exact owner email allowed to access the control plane
-- `DREAM_WIFI_SOURCE_TOKEN` — long random secret used by static source agents
-- `PORT` — supplied automatically by most hosts
-
-For the source agent, set `DREAM_WIFI_TUNNEL_URL=wss://YOUR_DEPLOYED_HOST/api/dream-education/dream-wifi/tunnel` and `DREAM_WIFI_SOURCE_TOKEN` on the authorized source device.
-
-For the local proxy, set `DREAM_WIFI_TUNNEL_URL` and sign in with a current owner access token as `DREAM_WIFI_OWNER_ACCESS_TOKEN`.
+Authorized source device:
+- `DREAM_WIFI_TUNNEL_URL=wss://YOUR_HOST/api/dream-education/dream-wifi/tunnel`
+- `DREAM_WIFI_SOURCE_TOKEN`
+- `DREAM_WIFI_SOURCE_NAME`, `DREAM_WIFI_SOURCE_ID`
+- `DREAM_WIFI_SOURCE_LATITUDE` and `DREAM_WIFI_SOURCE_LONGITUDE`: decimal coordinates. These are configured values, not automatically read from GPS.
 
 ## Run
-
 ```sh
 npm install
-cp .env.example .env
-npm start
+DREAM_WIFI_SOURCE_TOKEN='use-a-long-random-secret' npm start
 ```
-
-Open `http://localhost:3000`. Set the Supabase environment values before testing owner authentication.
+Open the hosted site and allow location permission. To make a source visible within the 300 km radius, configure its coordinates and run the authorized source agent with the same token.
 
 ## Validation
-
 ```sh
 npm test
 ```
-
-Successful unit/smoke tests do not prove that a remote phone can browse through a Quant connection. That requires a real authorized source device and an end-to-end network test.
+Passing tests do not prove end-to-end browsing through a real Quant source. Test real HTTP/HTTPS traffic through an authorized source before advertising access.

@@ -1,29 +1,10 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#07110d"><title>Dream Wi-Fi</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07110d"><title>Dream Wi-Fi — nearby services</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0}header,main{width:min(900px,calc(100% - 32px));margin:auto}header{padding:24px 0;border-bottom:1px solid #243b30;display:flex;justify-content:space-between;gap:12px;align-items:center}.brand{font-weight:900;letter-spacing:.08em}.brand span{color:#86efac}main{padding:42px 0 80px}h1{font-size:clamp(2.3rem,7vw,4.8rem);line-height:1;margin:12px 0 20px;letter-spacing:-.05em}.eyebrow{color:#86efac;text-transform:uppercase;letter-spacing:.16em;font-size:.78rem;font-weight:800}.lead{color:#bac7c0;line-height:1.7;max-width:720px}.card{margin-top:26px;border:1px solid #2b4939;border-radius:18px;padding:22px;background:#0d1b14}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}input,button{font:inherit;border-radius:10px;padding:12px 14px;min-height:46px}input{background:#07110d;border:1px solid #476454;color:white;flex:1;min-width:180px}button{background:#4ade80;color:#052e16;border:0;font-weight:850;cursor:pointer}button.secondary{background:#20382b;color:#e2e8f0;border:1px solid #476454}button:disabled{opacity:.5;cursor:not-allowed}#status{white-space:pre-wrap;color:#cbd5e1;line-height:1.7;min-height:2em;margin-top:14px}.muted{color:#94a3b8;font-size:.9rem;line-height:1.7}.hidden{display:none}.tile{border:1px solid #294235;border-radius:12px;padding:14px;margin:12px 0}.tile strong{color:#86efac}@media(max-width:520px){header{align-items:flex-start;flex-direction:column}}
-</style>
-</head><body>
-<header><div class="brand">DREAM <span>WI-FI</span></div><div class="muted">Standalone service</div></header>
-<main>
-<div class="eyebrow">Dream Tunnel</div><h1>Keep Dream Wi-Fi independent.</h1>
-<p class="lead">Sign in with the configured owner account to inspect the tunnel. This is a prototype control plane, not a promise of working remote internet. A source device must be online on a network you are authorized to use.</p>
-<section class="card">
-<h2>Owner sign-in</h2>
-<div id="config-warning" class="muted">Checking service configuration…</div>
-<div id="signin" class="row"><input id="email" type="email" autocomplete="username" placeholder="Owner email"><input id="password" type="password" autocomplete="current-password" placeholder="Password"><button id="login">Sign in</button></div>
-<div id="signed-in" class="hidden"><div class="tile">Session: <strong id="session-status">Not connected</strong></div><div class="row"><button id="refresh">Refresh status</button><button class="secondary" id="logout">Sign out</button></div></div>
-<div id="status" role="status" aria-live="polite"></div>
-</section>
-<section class="card"><h2>What is currently supported?</h2>
-<div class="tile"><strong>Source agent</strong><p class="muted">An authorized source device connects outbound over secure WebSocket.</p></div>
-<div class="tile"><strong>Remote proxy</strong><p class="muted">A local SOCKS5 proxy can carry compatible HTTP/HTTPS app traffic. It is not a full-device VPN.</p></div>
-<div class="tile"><strong>Packages and payments</strong><p class="muted">Disabled until authorized end-to-end tests verify real traffic and provider permission.</p></div>
-<p class="muted">Never put service-role keys or source tokens in this page. Only public Supabase URL/anon key are exposed for sign-in.</p>
-</section>
-</main>
-<script src="/app.js" defer></script>
-</body></html>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0}header,main{width:min(900px,calc(100% - 32px));margin:auto}header{padding:24px 0;border-bottom:1px solid #243b30;display:flex;justify-content:space-between;gap:12px;align-items:center}.brand{font-weight:900;letter-spacing:.08em}.brand span{color:#86efac}main{padding:42px 0 80px}h1{font-size:clamp(2.3rem,7vw,4.8rem);line-height:1;margin:12px 0 20px;letter-spacing:-.05em}.eyebrow{color:#86efac;text-transform:uppercase;letter-spacing:.16em;font-size:.78rem;font-weight:800}.lead{color:#bac7c0;line-height:1.7;max-width:720px}.card{margin-top:26px;border:1px solid #2b4939;border-radius:18px;padding:22px;background:#0d1b14}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}select,button{font:inherit;border-radius:10px;padding:12px 14px;min-height:46px}select{background:#07110d;border:1px solid #476454;color:white;flex:1;min-width:180px}button{background:#4ade80;color:#052e16;border:0;font-weight:850;cursor:pointer}button.secondary{background:#20382b;color:#e2e8f0;border:1px solid #476454}button:disabled{opacity:.5;cursor:not-allowed}#status{white-space:pre-wrap;color:#cbd5e1;line-height:1.7;min-height:2em;margin-top:14px}.muted{color:#94a3b8;font-size:.9rem;line-height:1.7}.tile{border:1px solid #294235;border-radius:12px;padding:14px;margin:12px 0}article strong{color:#86efac}@media(max-width:520px){header{align-items:flex-start;flex-direction:column}}
+</style></head><body><header><div class="brand">DREAM <span>WI-FI</span></div><div class="muted">Standalone · no account required</div></header>
+<main><div class="eyebrow">Dream Tunnel · Wi-Fi services</div><h1>Find participating Wi-Fi services.</h1>
+<p class="lead">Dream Wi-Fi detects your phone’s location and lists participating Dream Wi-Fi source devices reported within 300 km. It does not need Supabase or an owner login. A source must be online and authorized to share its connection before it can relay traffic.</p>
+<section class="card"><h2>Discover services</h2><p id="location" class="muted">Your location has not been requested yet.</p><div class="row"><button id="locate">Detect my location</button><select id="radius" aria-label="Search radius"><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option><option value="200">200 km</option><option value="300" selected>300 km</option></select><button id="search" class="secondary">Search again</button></div>
+<p id="summary" class="muted"></p><div id="sources" aria-live="polite"></div><div id="status" role="status" aria-live="polite"></div></section>
+<section class="card"><h2>Important limits</h2><div class="tile"><strong>Not a universal Wi-Fi scanner</strong><p class="muted">A website cannot scan every nearby SSID or detect every router across 300 km. This list contains only participating Dream Wi-Fi source devices with location coordinates.</p></div><div class="tile"><strong>Connection availability</strong><p class="muted">A hotspot is not connectable just because it appears on the list. Its source device must remain online and its owner must have explicitly authorized sharing. This website does not yet route all phone traffic as a full VPN.</p></div></section></main><script src="/app.js" defer></script></body></html>

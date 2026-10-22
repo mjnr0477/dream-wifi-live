@@ -3,6 +3,7 @@
 const { buildOverpassQuery } = require("../product/dream_wifi_public_hotspots");
 
 const endpoints = [
+  "https://osm.hpi.de/overpass/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 ];

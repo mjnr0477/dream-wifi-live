@@ -53,10 +53,9 @@ document.getElementById("check-status").addEventListener("click", async () => {
     const response = await fetch("/api/wifi/source-status");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Status request failed.");
-    const online = (data.sources || []).filter(source => source.connected);
-    status.textContent = online.length
-      ? online.length + " participating source(s) currently appear online in the sample search area. This does not yet prove end-to-end browsing."
-      : "No online participating source was found in the sample search area. This check is only a directory check, not a connection test.";
+    status.textContent = data.online_count
+      ? data.online_count + " participating source device(s) currently appear online. This does not yet prove end-to-end browsing."
+      : "No participating source device is currently connected. This is only a directory check, not a connection test.";
   } catch (error) { status.textContent = "Could not check source status: " + (error.message || "request failed"); }
 });
 </script>

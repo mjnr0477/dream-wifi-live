@@ -22,6 +22,7 @@ Copy `.env.example` to `.env` for local development. Never commit real credentia
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only credential for the source registry; never expose it to the browser
 - `DREAM_WIFI_OWNER_EMAIL` — exact owner email allowed to access the control plane
 - `DREAM_WIFI_SOURCE_TOKEN` — long random secret used by static source agents
 - `PORT` — supplied automatically by most hosts

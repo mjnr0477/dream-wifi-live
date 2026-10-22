@@ -12,3 +12,14 @@ Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCK
 
 ## Test
 Verify sign-in, source-ticket issuance, VPN permission, Quant portal/package activation, HTTPS browsing, DNS, disconnect, reconnect after network changes, and traffic leakage on a physical Android device. TCP ports other than 80/443 and UDP ports other than DNS/53 remain blocked.
+
+
+## Configure the standalone service host
+
+Build with the deployed Dream Wi-Fi base URL so the app does not depend on Dream Education:
+
+```sh
+./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
+```
+
+The standalone service must be deployed and configured first. Do not use the placeholder host literally. The app's login and refresh endpoints are provided by the standalone service.

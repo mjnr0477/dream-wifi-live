@@ -49,6 +49,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(port),
+      DREAM_WIFI_BIND_HOST: "127.0.0.1",
       DREAM_WIFI_SOURCE_TOKEN: "integration-test-source-token",
       DREAM_WIFI_DATA_DIR: dataDir,
       NODE_OPTIONS: "--require=" + preload

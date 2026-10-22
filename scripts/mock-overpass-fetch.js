@@ -4,6 +4,7 @@ const originalFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (input, init) => {
   const url = typeof input === "string" ? input : input && input.url;
   const isOverpassEndpoint = typeof url === "string" && [
+    "https://osm.hpi.de/overpass/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass-api.de/api/interpreter",

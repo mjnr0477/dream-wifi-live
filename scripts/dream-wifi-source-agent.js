@@ -1,0 +1,296 @@
+"use strict";
+
+// Authorized source-side connector. It can open public HTTP/HTTPS TCP streams only.
+// This is not a general LAN proxy: private, loopback and link-local destinations are blocked.
+const dns = require("node:dns").promises;
+const net = require("node:net");
+const dgram = require("node:dgram");
+const os = require("node:os");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const { WebSocket } = require("ws");
+const execFileAsync = promisify(execFile);
+
+const tunnelUrl = String(process.env.DREAM_WIFI_TUNNEL_URL || "").trim();
+const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
+const configuredSourceName = String(process.env.DREAM_WIFI_SOURCE_NAME || "").trim().slice(0, 80);
+const sourceId = String(process.env.DREAM_WIFI_SOURCE_ID || os.hostname() || "source").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80) || "source";
+const MAX_CHUNK = 12 * 1024;
+const MAX_WS_BUFFERED_BYTES = 1024 * 1024;
+const streams = new Map();
+const pendingOpens = new Set();
+const udpSockets = new Map();
+const MAX_UDP_DATAGRAM_BYTES = 8192;
+const MAX_UDP_FLOWS = 32;
+const UDP_IDLE_TIMEOUT_MS = 60000;
+
+if (!tunnelUrl || !sourceToken) {
+  console.error("Set DREAM_WIFI_TUNNEL_URL and DREAM_WIFI_SOURCE_TOKEN before starting the source agent.");
+  process.exit(1);
+}
+if (!/^wss:\/\//i.test(tunnelUrl)) {
+  console.error("DREAM_WIFI_TUNNEL_URL must use wss:// so the source token is encrypted in transit.");
+  process.exit(1);
+}
+
+let stopped = false;
+let socket = null;
+let reconnectTimer = null;
+let heartbeatTimer = null;
+let reconnectDelayMs = 5000;
+
+async function detectSourceName() {
+  if (configuredSourceName) return configuredSourceName;
+  const attempts = [
+    { command: "termux-wifi-connectioninfo", args: [], parse: output => {
+      try {
+        const data = JSON.parse(output);
+        const ssid = String(data.ssid || "").trim().replace(/^"(.*)"$/, "$1");
+        return ssid && ssid.toLowerCase() !== "<unknown ssid>" ? ssid : "";
+      } catch (_) { return ""; }
+    } },
+    { command: "iwgetid", args: ["-r"], parse: output => output.trim().replace(/^"(.*)"$/, "$1") },
+    { command: "nmcli", args: ["-t", "-f", "active,ssid", "dev", "wifi"], parse: output => {
+      const match = output.match(/^yes:(.*)$/m);
+      return match ? match[1].replace(/\\:/g, ":").trim() : "";
+    } }
+  ];
+  for (const attempt of attempts) {
+    try {
+      const { stdout } = await execFileAsync(attempt.command, attempt.args, { timeout: 1200, maxBuffer: 4096 });
+      const name = String(attempt.parse(stdout) || "").trim().replace(/[<>\x00-\x1f]/g, "").slice(0, 80);
+      if (name && name.toLowerCase() !== "<unknown ssid>") return name;
+    } catch (_) {}
+  }
+  return String(os.hostname() || "Dream Wi-Fi source").trim().slice(0, 80) || "Dream Wi-Fi source";
+}
+function send(payload) {
+  if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+}
+function validId(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(value);
+}
+function isPublicAddress(address) {
+  const family = net.isIP(address);
+  if (family === 4) {
+    const p = address.split(".").map(Number);
+    if (p.length !== 4 || p.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+    const [a, b, c] = p;
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && (b === 168 || (b === 0 && (c === 0 || c === 2)))) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    if (a === 255 && b === 255 && c === 255) return false;
+    return true;
+  }
+  if (family === 6) {
+    const value = address.toLowerCase();
+    if (value.startsWith("::ffff:")) return false;
+    const first = parseInt(value.split(":")[0] || "0", 16);
+    return first >= 0x2000 && first <= 0x3fff && !value.startsWith("2001:db8:");
+  }
+  return false;
+}
+async function resolvePublicHost(host) {
+  if (net.isIP(host)) {
+    if (!isPublicAddress(host)) throw new Error("Private or reserved destination is blocked.");
+    return { address: host, family: net.isIP(host) };
+  }
+  const answers = await dns.lookup(host, { all: true, verbatim: true });
+  if (!answers.length || answers.some(answer => !isPublicAddress(answer.address))) {
+    throw new Error("Destination did not resolve exclusively to public IP addresses.");
+  }
+  return answers[0];
+}
+function closeUdpFlow(key) {
+  const entry = udpSockets.get(key); if (!entry) return; udpSockets.delete(key);
+  if (entry.timer) clearTimeout(entry.timer); try { entry.socket.close(); } catch (_) {}
+}
+function closeUdpAssociation(id) { for (const [key, entry] of udpSockets.entries()) if (entry.id === id) closeUdpFlow(key); }
+function refreshUdpTimer(key) { const entry = udpSockets.get(key); if (!entry) return; if (entry.timer) clearTimeout(entry.timer); entry.timer = setTimeout(() => closeUdpFlow(key), UDP_IDLE_TIMEOUT_MS); }
+async function relayUdp(message) {
+  const id = message.id, host = typeof message.host === 'string' ? message.host.trim() : '', port = Number(message.port);
+  if (!validId(id) || !host || host.length > 253 || !Number.isInteger(port) || port < 1 || port > 65535 || typeof message.data !== 'string' || message.data.length > 10930) { send({ type: 'udp-error', id: validId(id) ? id : '', error: 'Invalid UDP datagram.' }); return; }
+  const data = Buffer.from(message.data, 'base64'); if (!data.length || data.length > MAX_UDP_DATAGRAM_BYTES) { send({ type: 'udp-error', id, error: 'UDP datagram size is not supported.' }); return; }
+  const key = id + '|' + host.toLowerCase() + '|' + port;
+  try {
+    let entry = udpSockets.get(key);
+    if (!entry) {
+      if (udpSockets.size >= MAX_UDP_FLOWS) { send({ type: 'udp-error', id, error: 'Source UDP flow limit reached.' }); return; }
+      const target = await resolvePublicHost(host); if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      const udp = dgram.createSocket(target.family === 6 ? 'udp6' : 'udp4'); entry = { id, host, port, socket: udp, timer: null, target }; udpSockets.set(key, entry);
+      udp.on('message', response => { if (response.length > MAX_UDP_DATAGRAM_BYTES || !socket || socket.readyState !== WebSocket.OPEN) return; if (socket.bufferedAmount > MAX_WS_BUFFERED_BYTES) return closeUdpFlow(key); send({ type: 'udp-data', id, host, port, data: response.toString('base64') }); refreshUdpTimer(key); });
+      udp.on('error', error => { send({ type: 'udp-error', id, error: String(error.message || 'UDP socket failed').slice(0, 160) }); closeUdpFlow(key); });
+    }
+    refreshUdpTimer(key); entry.socket.send(data, port, entry.target.address, error => { if (error) send({ type: 'udp-error', id, error: String(error.message || 'UDP send failed').slice(0, 160) }); });
+  } catch (error) { send({ type: 'udp-error', id, error: String(error.message || 'UDP destination rejected').slice(0, 160) }); }
+}
+function closeStream(id, sendClose) {
+  const entry = streams.get(id);
+  if (!entry) return;
+  streams.delete(id);
+  entry.finished = true;
+  if (sendClose) send({ type: "tcp-close", id });
+  try { entry.socket.destroy(); } catch (_) {}
+}
+async function openStream(message) {
+  const id = message.id;
+  const host = typeof message.host === "string" ? message.host.trim() : "";
+  const port = Number(message.port);
+  if (!validId(id) || !host || host.length > 253 || ![80, 443].includes(port) || streams.has(id)) {
+    send({ type: "tcp-error", id: validId(id) ? id : "", error: "Invalid or unsupported TCP destination." });
+    return;
+  }
+  if (streams.size >= 8) {
+    send({ type: "tcp-error", id, error: "Source endpoint stream limit reached." });
+    return;
+  }
+
+  pendingOpens.add(id);
+  try {
+    const target = await resolvePublicHost(host);
+    if (!pendingOpens.has(id) || !socket || socket.readyState !== WebSocket.OPEN) return;
+    pendingOpens.delete(id);
+    const tcp = net.connect({ host: target.address, family: target.family, port });
+    const entry = { socket: tcp, opened: false, finished: false };
+    streams.set(id, entry);
+    tcp.setTimeout(15000, () => tcp.destroy(new Error("TCP connection timed out.")));
+
+    tcp.once("connect", () => {
+      if (entry.finished) return;
+      entry.opened = true;
+      tcp.setTimeout(5 * 60 * 1000, () => tcp.destroy(new Error("TCP stream idle timeout.")));
+      send({ type: "tcp-opened", id });
+    });
+    tcp.on("data", chunk => {
+      if (entry.finished) return;
+      tcp.setTimeout(5 * 60 * 1000, () => tcp.destroy(new Error("TCP stream idle timeout.")));
+      if (socket && socket.bufferedAmount > MAX_WS_BUFFERED_BYTES) {
+        closeStream(id, true);
+        return;
+      }
+      for (let offset = 0; offset < chunk.length; offset += MAX_CHUNK) {
+        send({ type: "tcp-data", id, data: chunk.subarray(offset, offset + MAX_CHUNK).toString("base64") });
+      }
+    });
+    tcp.on("error", error => {
+      if (entry.finished) return;
+      entry.finished = true;
+      streams.delete(id);
+      if (!entry.opened) send({ type: "tcp-error", id, error: String(error.message || "TCP connection failed").slice(0, 180) });
+      else send({ type: "tcp-close", id });
+    });
+    tcp.on("close", () => {
+      if (entry.finished) return;
+      entry.finished = true;
+      streams.delete(id);
+      if (entry.opened) send({ type: "tcp-close", id });
+    });
+  } catch (error) {
+    pendingOpens.delete(id);
+    send({ type: "tcp-error", id, error: String(error.message || "Destination rejected").slice(0, 180) });
+  }
+}
+
+function connect() {
+  if (stopped) return;
+  socket = new WebSocket(tunnelUrl, { perMessageDeflate: false, maxPayload: 24 * 1024 });
+  const currentSocket = socket;
+  let heartbeatAlive = true;
+  currentSocket.on("pong", () => { heartbeatAlive = true; });
+  currentSocket.on("open", () => {
+    heartbeatTimer = setInterval(() => {
+      if (currentSocket.readyState !== WebSocket.OPEN) return;
+      if (!heartbeatAlive) {
+        console.error("Dream Tunnel heartbeat timed out; reconnecting.");
+        currentSocket.terminate();
+        return;
+      }
+      heartbeatAlive = false;
+      try {
+        currentSocket.ping();
+      } catch (error) {
+        console.error("Dream Tunnel heartbeat failed:", error.message);
+        currentSocket.terminate();
+      }
+    }, 25000);
+    detectSourceName().then(sourceName => {
+      if (stopped || currentSocket !== socket || currentSocket.readyState !== WebSocket.OPEN) return;
+      currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName }));
+    }).catch(() => {
+      if (!stopped && currentSocket === socket && currentSocket.readyState === WebSocket.OPEN) {
+        currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName: os.hostname() }));
+      }
+    });
+  });
+  currentSocket.on("message", raw => {
+    let message;
+    try { message = JSON.parse(raw.toString("utf8")); } catch (_) { return; }
+    if (message.type === "registered" && message.role === "source") {
+      reconnectDelayMs = 5000;
+      console.log("Dream Tunnel source authenticated; public HTTP/HTTPS relay is ready for owner-authorized tests.");
+    } else if (message.type === "ping" && typeof message.id === "string") {
+      send({ type: "pong", id: message.id });
+    } else if (message.type === "tcp-open") {
+      openStream(message);
+    } else if (message.type === "udp-send") {
+      relayUdp(message);
+    } else if (message.type === "udp-close" && validId(message.id)) {
+      closeUdpAssociation(message.id);
+    } else if (message.type === "tcp-data" && validId(message.id)) {
+      const entry = streams.get(message.id);
+      if (!entry || entry.finished || typeof message.data !== "string") return;
+      const data = Buffer.from(message.data, "base64");
+      if (data.length > MAX_CHUNK) return closeStream(message.id, true);
+      if (entry.socket.writableLength > MAX_WS_BUFFERED_BYTES) return closeStream(message.id, true);
+      entry.socket.write(data);
+      entry.socket.setTimeout(5 * 60 * 1000, () => entry.socket.destroy(new Error("TCP stream idle timeout.")));
+    } else if (message.type === "tcp-close" && validId(message.id)) {
+      pendingOpens.delete(message.id);
+      closeStream(message.id, false);
+    } else if (message.type === "error") {
+      console.error("Dream Tunnel source rejected:", String(message.error || "unknown error"));
+      currentSocket.close(1008, "Source rejected");
+    }
+  });
+  currentSocket.on("close", (code, reason) => {
+    if (socket !== currentSocket) return;
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    pendingOpens.clear();
+    for (const id of [...streams.keys()]) closeStream(id, false);
+    for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
+    if (code === 1008) {
+      stopped = true;
+      console.error("Dream Tunnel source authorization was rejected; automatic retries stopped.");
+      return;
+    }
+    if (!stopped) {
+      const delay = reconnectDelayMs;
+      reconnectDelayMs = Math.min(reconnectDelayMs * 2, 60000);
+      const detail = reason && reason.length ? reason.toString("utf8") : "no reason supplied";
+      console.error("Dream Tunnel source WebSocket closed (code " + code + "; " + detail + ").");
+      console.log("Dream Tunnel source reconnecting in " + Math.ceil(delay / 1000) + " seconds.");
+      reconnectTimer = setTimeout(connect, delay);
+    }
+  });
+  currentSocket.on("error", error => {
+    console.error("Dream Tunnel source WebSocket error:", error.message);
+  });
+}
+
+function shutdown() {
+  stopped = true;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = null;
+  for (const id of [...streams.keys()]) closeStream(id, false);
+  for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
+  if (socket) socket.close();
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+connect();

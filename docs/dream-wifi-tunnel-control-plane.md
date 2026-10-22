@@ -22,7 +22,7 @@ Set that same value as `DREAM_WIFI_SOURCE_TOKEN` in the Dream Education hosting 
 On the source-side device, install the project's dependencies and run the source agent:
 
 ```sh
-DREAM_WIFI_TUNNEL_URL=wss://dream-education-live-4.onrender.com/api/dream-education/dream-wifi/tunnel \
+DREAM_WIFI_TUNNEL_URL=wss://YOUR_DREAM_WIFI_HOST/api/dream-education/dream-wifi/tunnel \
 DREAM_WIFI_SOURCE_TOKEN='your-generated-token' \
 npm run dream-wifi:source
 ```
@@ -31,10 +31,10 @@ Run the agent only on a device/network you are authorized to use. It opens publi
 
 ## Start the remote phone's SOCKS5 client
 
-On the remote Android phone, install Node.js and npm in Termux, clone the Dream Education repository, and install dependencies. Then use a current owner Supabase access token from your own signed-in session:
+On the remote Android phone, install Node.js and npm in Termux, clone the standalone Dream Wi-Fi repository, and install dependencies. Then use a current owner Supabase access token from your own signed-in session:
 
 ```sh
-DREAM_WIFI_TUNNEL_URL=wss://dream-education-live-4.onrender.com/api/dream-education/dream-wifi/tunnel \
+DREAM_WIFI_TUNNEL_URL=wss://YOUR_DREAM_WIFI_HOST/api/dream-education/dream-wifi/tunnel \
 DREAM_WIFI_OWNER_ACCESS_TOKEN='your-current-owner-session-token' \
 npm run dream-wifi:proxy
 ```

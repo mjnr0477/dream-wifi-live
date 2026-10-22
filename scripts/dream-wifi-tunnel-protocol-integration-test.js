@@ -41,17 +41,6 @@ async function main() {
   const server = http.createServer();
   const tunnel = attachDreamWifiTunnel(server, {
     sourceToken: "integration-test-source-token",
-    supabaseAuth: {
-      auth: {
-        async getUser(token) {
-          if (token !== "valid-owner-session") {
-            return { data: { user: null }, error: new Error("invalid session") };
-          }
-          return { data: { user: { id: "integration-owner", email: "owner@example.test" } }, error: null };
-        }
-      }
-    },
-    isOwnerAccount: account => account && account.email === "owner@example.test"
   });
 
   let source;

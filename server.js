@@ -40,7 +40,8 @@ app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), database: false, authentication: "public-client" }));\napp.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length }); });
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), database: false, authentication: "public-client" }));
+app.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length }); });
 const server = http.createServer(app);
 const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDreamWifiTunnel(server, { sourceToken });
 app.get("/api/wifi/sources", (req, res) => {

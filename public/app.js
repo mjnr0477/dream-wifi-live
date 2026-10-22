@@ -182,5 +182,31 @@
   });
   $("search").addEventListener("click", search);
   $("radius").addEventListener("change", () => { if (position) search(); });
-  status("No sign-in or Supabase account is required. Detect your location to search.");
+
+  // Keep participating Dream Wi-Fi sources fresh while the discovery page stays open.
+  // Public hotspot map data is refreshed only on an explicit/full search, not every 30 seconds.
+  async function refreshSourceTracking() {
+    if (!position || document.visibilityState === "hidden") return;
+    const params = new URLSearchParams({
+      latitude: position.latitude,
+      longitude: position.longitude,
+      radius_km: $("radius").value
+    });
+    try {
+      const data = await requestJson("/api/wifi/sources?" + params);
+      renderSources(data);
+      const checkedAt = new Date().toLocaleTimeString();
+      $("source-summary").textContent += " · refreshed " + checkedAt;
+    } catch (error) {
+      status("Live source refresh failed: " + (error.message || "request failed") + "\\nWill retry automatically.");
+    }
+  }
+  setInterval(refreshSourceTracking, 30000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshSourceTracking();
+  });
+
+  status("Detecting your location. Allow the location prompt to search Wi-Fi within your selected radius.");
+  // Auto-request location on opening; the user can deny permission or retry with the button.
+  $("locate").click();
 })();

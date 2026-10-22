@@ -6,7 +6,7 @@ Dream Wi-Fi can list and route through multiple **registered source endpoints**.
 
 On an authorized source device connected to the intended internet network, configure:
 
-- `DREAM_WIFI_TUNNEL_URL=wss://dream-education-live-4.onrender.com/api/dream-education/dream-wifi/tunnel`
+- `DREAM_WIFI_TUNNEL_URL=wss://YOUR_DREAM_WIFI_HOST/api/dream-education/dream-wifi/tunnel`
 - `DREAM_WIFI_SOURCE_TOKEN` to the source credential configured for the hosted service
 - `DREAM_WIFI_SOURCE_NAME` to optionally override the friendly name shown in the app
 - `DREAM_WIFI_SOURCE_ID` to a stable, unique ID for that source (letters, digits, underscore and hyphen)

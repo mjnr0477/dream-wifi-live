@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/mjnr0477/dream-wifi-live/main/scrip
 read -rsp "Paste temporary source ticket: " DREAM_WIFI_SOURCE_TOKEN
 echo
 export DREAM_WIFI_SOURCE_TOKEN
-export DREAM_WIFI_TUNNEL_URL='wss://dream-education-live-4.onrender.com/api/dream-education/dream-wifi/tunnel'
+export DREAM_WIFI_TUNNEL_URL='wss://YOUR_DREAM_WIFI_HOST/api/dream-education/dream-wifi/tunnel'
 export DREAM_WIFI_SOURCE_NAME='Authorized Wi-Fi source'
 node ./dream-wifi-source-agent.js
 ```

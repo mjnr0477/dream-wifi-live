@@ -97,7 +97,7 @@ async function main() {
     assert.equal(pageResponse.status, 200);
     const page = await pageResponse.text();
     assert.match(page, /Find Wi-Fi around you/);
-    assert.match(page, /public\/app\.js/);
+    assert.match(page, /src="\/app\.js"/);
 
     console.log("Dream Wi-Fi public API integration test passed (startup, health, public config, location validation, source directory, hotspot route, and page delivery).");
   } finally {

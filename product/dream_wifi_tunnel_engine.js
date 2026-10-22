@@ -1,0 +1,405 @@
+"use strict";
+
+const crypto = require("node:crypto");
+const { WebSocket, WebSocketServer } = require("ws");
+
+const MAX_MESSAGE_BYTES = 24 * 1024;
+const MAX_TCP_CHUNK_BYTES = 12 * 1024;
+const MAX_STREAMS_PER_OWNER = 8;
+const MAX_UDP_ASSOCIATIONS_PER_OWNER = 8;
+const MAX_UDP_DATAGRAM_BYTES = 8192;
+const UDP_IDLE_TIMEOUT_MS = 60000;
+const MAX_WS_BUFFERED_BYTES = 1024 * 1024;
+const PING_TIMEOUT_MS = 5000;
+
+function safeEqual(left, right) {
+  const a = Buffer.from(String(left || ""), "utf8");
+  const b = Buffer.from(String(right || ""), "utf8");
+  return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function send(socket, payload) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(payload));
+  }
+}
+function validStreamId(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(value);
+}
+function decodeChunk(value) {
+  if (typeof value !== "string" || value.length > Math.ceil(MAX_TCP_CHUNK_BYTES * 4 / 3) + 8 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return null;
+  const decoded = Buffer.from(value, "base64");
+  return decoded.length <= MAX_TCP_CHUNK_BYTES ? decoded : null;
+}
+
+function attachDreamWifiTunnel(server, options = {}) {
+  const supabaseAuth = options.supabaseAuth;
+  const isOwnerAccount = options.isOwnerAccount;
+  const sourceToken = String(options.sourceToken || "");
+  const sourceTickets = new Map();
+  const SOURCE_TICKET_TTL_MS = Number.isFinite(options.sourceTicketTtlMs) && options.sourceTicketTtlMs > 0
+    ? Math.min(options.sourceTicketTtlMs, 12 * 60 * 60 * 1000)
+    : 12 * 60 * 60 * 1000;
+  const owners = new Set();
+  const sources = new Map();
+  const pendingPings = new Map();
+  const streams = new Map();
+  const udpAssociations = new Map();
+
+  const wss = new WebSocketServer({
+    server,
+    path: "/api/dream-education/dream-wifi/tunnel",
+    maxPayload: MAX_MESSAGE_BYTES,
+    perMessageDeflate: false
+  });
+
+  function sourceConnected(sourceId) {
+    if (sourceId) {
+      const source = sources.get(String(sourceId));
+      return Boolean(source && source.readyState === WebSocket.OPEN);
+    }
+    for (const source of sources.values()) {
+      if (source.readyState === WebSocket.OPEN) return true;
+    }
+    return false;
+  }
+  function sourceDetails(socket) {
+    return {
+      id: socket.dreamSourceId,
+      name: socket.dreamSourceName,
+      connected: socket.readyState === WebSocket.OPEN,
+      connectedAt: socket.dreamSourceConnectedAt
+    };
+  }
+  function sourceListForOwner(ownerSocket) {
+    const result = [];
+    for (const source of sources.values()) {
+      if (source.dreamSourceOwnerId && source.dreamSourceOwnerId !== ownerSocket.dreamOwnerId) continue;
+      result.push(sourceDetails(source));
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function resolveSourceForOwner(ownerSocket, sourceId) {
+    if (sourceId !== undefined && sourceId !== null && String(sourceId).trim()) {
+      const selected = sources.get(String(sourceId));
+      if (!selected || selected.readyState !== WebSocket.OPEN ||
+          (selected.dreamSourceOwnerId && selected.dreamSourceOwnerId !== ownerSocket.dreamOwnerId)) return null;
+      return selected;
+    }
+    return sourceListForOwner(ownerSocket).map(item => sources.get(item.id)).find(Boolean) || null;
+  }
+  function issueSourceTicket(ownerId) {
+    const owner = String(ownerId || "").trim();
+    if (!owner) throw new Error("A verified owner identity is required.");
+    const now = Date.now();
+    for (const [token, entry] of sourceTickets.entries()) {
+      if (entry.expiresAt <= now) sourceTickets.delete(token);
+    }
+    const token = crypto.randomBytes(32).toString("base64url");
+    const expiresAt = now + SOURCE_TICKET_TTL_MS;
+    sourceTickets.set(token, { ownerId: owner, expiresAt });
+    return { token, expires_at: new Date(expiresAt).toISOString() };
+  }
+  function sourceAuthKind(candidate) {
+    const supplied = String(candidate || "");
+    if (!supplied) return null;
+    const now = Date.now();
+    for (const [token, entry] of sourceTickets.entries()) {
+      if (entry.expiresAt <= now) {
+        sourceTickets.delete(token);
+        continue;
+      }
+      if (safeEqual(supplied, token)) return { kind: "ticket", ownerId: entry.ownerId, expiresAt: entry.expiresAt };
+    }
+    // Static source agents and ticket-authenticated native sources may coexist.
+    return sourceToken && safeEqual(supplied, sourceToken) ? { kind: "static", ownerId: null } : null;
+  }
+  function broadcastSourceState() {
+    for (const owner of owners) {
+      send(owner, { type: "source-state", connected: sourceListForOwner(owner).length > 0 });
+      send(owner, { type: "source-list", sources: sourceListForOwner(owner) });
+    }
+  }
+  function reject(socket, message) {
+    send(socket, { type: "error", error: message });
+    try { socket.close(1008, "Dream Wi-Fi authorization failed"); } catch (_) {}
+  }
+  function closeStream(id, reason, notifyOwner = true, notifySource = true) {
+    const entry = streams.get(id);
+    if (!entry) return;
+    streams.delete(id);
+    if (notifySource) send(entry.source, { type: "tcp-close", id, reason: reason || "closed" });
+    if (notifyOwner) send(entry.owner, { type: "tcp-close", id, reason: reason || "closed" });
+  }
+  function closeStreamsFor(socket, reason) {
+    for (const [id, entry] of streams.entries()) {
+      if (entry.owner === socket || entry.source === socket) {
+        closeStream(id, reason, entry.owner !== socket, entry.source !== socket);
+      }
+    }
+    for (const [id, entry] of udpAssociations.entries()) {
+      if (entry.owner === socket || entry.source === socket) {
+        udpAssociations.delete(id); clearTimeout(entry.timeout);
+        if (entry.owner !== socket) send(entry.owner, { type: 'udp-close', id, reason });
+        if (entry.source !== socket) send(entry.source, { type: 'udp-close', id, reason });
+      }
+    }
+  }
+  function clearPingsFor(socket) {
+    for (const [id, entry] of pendingPings.entries()) {
+      if (entry.owner === socket) {
+        clearTimeout(entry.timeout);
+        pendingPings.delete(id);
+      }
+    }
+  }
+
+  wss.on("connection", (socket) => {
+    socket.dreamRole = null;
+    socket.registering = false;
+
+    socket.on("message", async (raw) => {
+      if (raw.length > MAX_MESSAGE_BYTES) {
+        reject(socket, "Message too large.");
+        return;
+      }
+      let message;
+      try { message = JSON.parse(raw.toString("utf8")); }
+      catch (_) { reject(socket, "Invalid message format."); return; }
+      if (!message || typeof message !== "object" || typeof message.type !== "string") {
+        reject(socket, "Invalid message.");
+        return;
+      }
+
+      if (!socket.dreamRole) {
+        if (socket.registering || message.type !== "register") {
+          reject(socket, "Register a verified endpoint first.");
+          return;
+        }
+        socket.registering = true;
+
+        if (message.role === "source") {
+          const sourceAuth = sourceAuthKind(message.sourceToken);
+          if (!sourceAuth) {
+            reject(socket, "Source endpoint is not authorized or not configured.");
+            return;
+          }
+          const sourceName = String(message.sourceName || "").trim().replace(/[<>\x00-\x1f]/g, "").slice(0, 80) || "Dream Wi-Fi source";
+          const proposedId = String(message.sourceId || "").trim();
+          const sourceId = /^[a-zA-Z0-9_-]{1,80}$/.test(proposedId)
+            ? proposedId
+            : crypto.createHash("sha256").update(sourceName + "|" + (sourceAuth.ownerId || "static")).digest("hex").slice(0, 24);
+          const previous = sources.get(sourceId);
+          if (previous && previous !== socket &&
+              (previous.dreamSourceOwnerId !== sourceAuth.ownerId ||
+               previous.dreamSourceAuth !== sourceAuth.kind)) {
+            reject(socket, "Source ID is already registered to a different authorization scope.");
+            return;
+          }
+          if (previous && previous !== socket) {
+            try { previous.close(1012, "Source endpoint replaced"); } catch (_) {}
+          }
+          socket.dreamSourceId = sourceId;
+          socket.dreamSourceName = sourceName;
+          socket.dreamSourceAuth = sourceAuth.kind;
+          socket.dreamSourceOwnerId = sourceAuth.ownerId;
+          socket.dreamSourceConnectedAt = new Date().toISOString();
+          if (sourceAuth.kind === "ticket" && Number.isFinite(sourceAuth.expiresAt)) {
+            const remainingMs = Math.max(0, sourceAuth.expiresAt - Date.now());
+            socket.dreamSourceTicketTimer = setTimeout(() => {
+              if (socket.readyState === WebSocket.OPEN) {
+                reject(socket, "Source ticket expired. Generate a new ticket and reconnect.");
+              }
+            }, remainingMs);
+            if (typeof socket.dreamSourceTicketTimer.unref === "function") socket.dreamSourceTicketTimer.unref();
+          }
+          socket.dreamRole = "source";
+          sources.set(sourceId, socket);
+          send(socket, { type: "registered", role: "source", sourceId, sourceName });
+          broadcastSourceState();
+          return;
+        }
+
+        if (message.role === "owner") {
+          const accessToken = typeof message.accessToken === "string" ? message.accessToken.trim() : "";
+          if (!accessToken || !supabaseAuth || typeof isOwnerAccount !== "function") {
+            reject(socket, "Owner authentication is unavailable.");
+            return;
+          }
+          let ownerId = "";
+          try {
+            const result = await supabaseAuth.auth.getUser(accessToken);
+            const user = result && result.data ? result.data.user : null;
+            if (result.error || !user || !isOwnerAccount({ email: user.email })) {
+              reject(socket, "Owner access is required.");
+              return;
+            }
+            ownerId = String(user.id || "");
+          } catch (_) {
+            reject(socket, "Owner authentication failed.");
+            return;
+          }
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.dreamRole = "owner";
+          socket.dreamOwnerId = ownerId;
+          owners.add(socket);
+          send(socket, { type: "registered", role: "owner" });
+          send(socket, { type: "source-state", connected: sourceListForOwner(socket).length > 0 });
+          send(socket, { type: "source-list", sources: sourceListForOwner(socket) });
+          return;
+        }
+        reject(socket, "Unsupported endpoint role.");
+        return;
+      }
+
+      if (socket.dreamRole === "owner" && message.type === "ping-source") {
+        const selectedSource = resolveSourceForOwner(socket, message.sourceId);
+        if (!selectedSource) {
+          send(socket, { type: "ping-result", success: false, error: "No accessible source endpoint is connected." });
+          return;
+        }
+        const id = crypto.randomUUID();
+        const sentAt = Date.now();
+        const timeout = setTimeout(() => {
+          pendingPings.delete(id);
+          send(socket, { type: "ping-result", success: false, sourceId: selectedSource.dreamSourceId, error: "Source endpoint did not respond in time." });
+        }, PING_TIMEOUT_MS);
+        pendingPings.set(id, { owner: socket, source: selectedSource, sourceId: selectedSource.dreamSourceId, sentAt, timeout });
+        send(selectedSource, { type: "ping", id });
+        return;
+      }
+
+      if (socket.dreamRole === 'owner' && message.type === 'udp-send') {
+        const id = message.id, host = typeof message.host === 'string' ? message.host.trim() : '', port = Number(message.port);
+        const chunk = decodeChunk(message.data);
+        if (!validStreamId(id) || !host || host.length > 253 || host.includes('/') || host.includes(' ') || !Number.isInteger(port) || port < 1 || port > 65535 || !chunk || chunk.length > MAX_UDP_DATAGRAM_BYTES) {
+          send(socket, { type: 'udp-error', id: validStreamId(id) ? id : '', error: 'Invalid UDP destination or datagram.' }); return;
+        }
+        let entry = udpAssociations.get(id);
+        if (!entry) {
+          if ([...udpAssociations.values()].filter(item => item.owner === socket).length >= MAX_UDP_ASSOCIATIONS_PER_OWNER) { send(socket, { type: 'udp-error', id, error: 'Too many UDP associations.' }); return; }
+          const selectedSource = resolveSourceForOwner(socket, message.sourceId);
+          if (!selectedSource) { send(socket, { type: 'udp-error', id, error: 'No accessible source endpoint is connected.' }); return; }
+          entry = { owner: socket, source: selectedSource, sourceId: selectedSource.dreamSourceId, timeout: null }; udpAssociations.set(id, entry);
+        }
+        if (entry.owner !== socket) { send(socket, { type: 'udp-error', id, error: 'UDP association is not owned by this session.' }); return; }
+        clearTimeout(entry.timeout); entry.timeout = setTimeout(() => {
+          if (udpAssociations.get(id) === entry) { udpAssociations.delete(id); send(entry.source, { type: 'udp-close', id, reason: 'idle-timeout' }); send(entry.owner, { type: 'udp-close', id, reason: 'idle-timeout' }); }
+        }, UDP_IDLE_TIMEOUT_MS);
+        if (entry.source.bufferedAmount > MAX_WS_BUFFERED_BYTES) { udpAssociations.delete(id); clearTimeout(entry.timeout); send(socket, { type: 'udp-error', id, error: 'Source relay is backpressured.' }); return; }
+        send(entry.source, { type: 'udp-send', id, host, port, data: chunk.toString('base64') }); return;
+      }
+      if (socket.dreamRole === 'owner' && message.type === 'udp-close') {
+        const entry = udpAssociations.get(message.id);
+        if (entry && entry.owner === socket) { udpAssociations.delete(message.id); clearTimeout(entry.timeout); send(entry.source, { type: 'udp-close', id: message.id, reason: 'owner-closed' }); }
+        return;
+      }
+      if (socket.dreamRole === "owner" && message.type === "tcp-open") {
+        const id = message.id;
+        const host = typeof message.host === "string" ? message.host.trim() : "";
+        const port = Number(message.port);
+        const activeForOwner = [...streams.values()].filter(entry => entry.owner === socket).length;
+        if (!validStreamId(id) || !host || host.length > 253 || /\s/.test(host) || host.includes("/") || host.includes("\\") ||
+            ![80, 443].includes(port)) {
+          send(socket, { type: "tcp-error", id: validStreamId(id) ? id : "", error: "Only public HTTP/HTTPS TCP destinations are allowed." });
+          return;
+        }
+        if (activeForOwner >= MAX_STREAMS_PER_OWNER) {
+          send(socket, { type: "tcp-error", id, error: "Too many concurrent streams." });
+          return;
+        }
+        const selectedSource = resolveSourceForOwner(socket, message.sourceId);
+        if (!selectedSource) {
+          send(socket, { type: "tcp-error", id, error: "No accessible source endpoint is connected." });
+          return;
+        }
+        if (streams.has(id)) {
+          send(socket, { type: "tcp-error", id, error: "Duplicate stream identifier." });
+          return;
+        }
+        streams.set(id, { owner: socket, source: selectedSource, sourceId: selectedSource.dreamSourceId });
+        send(selectedSource, { type: "tcp-open", id, host, port });
+        return;
+      }
+
+      if (socket.dreamRole === "owner" && message.type === "tcp-data") {
+        const entry = streams.get(message.id);
+        const chunk = decodeChunk(message.data);
+        if (!entry || entry.owner !== socket || !chunk) {
+          if (entry && entry.owner === socket) closeStream(message.id, "invalid-data-frame");
+          else send(socket, { type: "tcp-error", id: validStreamId(message.id) ? message.id : "", error: "Invalid stream or data frame." });
+          return;
+        }
+        if (entry.source.bufferedAmount > MAX_WS_BUFFERED_BYTES) {
+          closeStream(message.id, "source-backpressure-limit");
+          return;
+        }
+        send(entry.source, { type: "tcp-data", id: message.id, data: chunk.toString("base64") });
+        return;
+      }
+
+      if (socket.dreamRole === "owner" && message.type === "tcp-close") {
+        if (validStreamId(message.id)) closeStream(message.id, "owner-closed", false, true);
+        return;
+      }
+
+      if (socket.dreamRole === "source" && message.type === "pong" && typeof message.id === "string") {
+        const entry = pendingPings.get(message.id);
+        if (!entry || entry.source !== socket) return;
+        clearTimeout(entry.timeout);
+        pendingPings.delete(message.id);
+        send(entry.owner, { type: "ping-result", success: true, sourceId: entry.sourceId, latency_ms: Math.max(0, Date.now() - entry.sentAt) });
+        return;
+      }
+
+      if (socket.dreamRole === 'source' && message.type === 'udp-data') {
+        const entry = udpAssociations.get(message.id), host = typeof message.host === 'string' ? message.host : '', port = Number(message.port), chunk = decodeChunk(message.data);
+        if (!entry || entry.source !== socket || !host || host.length > 253 || !Number.isInteger(port) || port < 1 || port > 65535 || !chunk || chunk.length > MAX_UDP_DATAGRAM_BYTES) return;
+        if (entry.owner.bufferedAmount > MAX_WS_BUFFERED_BYTES) { udpAssociations.delete(message.id); clearTimeout(entry.timeout); send(entry.owner, { type: 'udp-close', id: message.id, reason: 'owner-backpressure-limit' }); send(socket, { type: 'udp-close', id: message.id, reason: 'owner-backpressure-limit' }); return; }
+        clearTimeout(entry.timeout); entry.timeout = setTimeout(() => { if (udpAssociations.get(message.id) === entry) { udpAssociations.delete(message.id); send(entry.source, { type: 'udp-close', id: message.id, reason: 'idle-timeout' }); send(entry.owner, { type: 'udp-close', id: message.id, reason: 'idle-timeout' }); } }, UDP_IDLE_TIMEOUT_MS);
+        send(entry.owner, { type: 'udp-data', id: message.id, host, port, data: chunk.toString('base64') }); return;
+      }
+      if (socket.dreamRole === 'source' && message.type === 'udp-error') { const entry = udpAssociations.get(message.id); if (entry && entry.source === socket) send(entry.owner, { type: 'udp-error', id: message.id, error: String(message.error || 'UDP relay failed').slice(0, 180) }); return; }
+      if (socket.dreamRole === "source" && ["tcp-opened", "tcp-error", "tcp-data", "tcp-close"].includes(message.type)) {
+        if (!validStreamId(message.id)) return;
+        const entry = streams.get(message.id);
+        if (!entry || entry.source !== socket) return;
+        if (message.type === "tcp-data") {
+          const chunk = decodeChunk(message.data);
+          if (!chunk || entry.owner.bufferedAmount > MAX_WS_BUFFERED_BYTES) {
+            closeStream(message.id, "owner-backpressure-or-invalid-frame");
+            return;
+          }
+          send(entry.owner, { type: "tcp-data", id: message.id, data: chunk.toString("base64") });
+        } else {
+          send(entry.owner, message);
+          if (message.type === "tcp-close" || message.type === "tcp-error") {
+            closeStream(message.id, message.type, false, false);
+          }
+        }
+        return;
+      }
+
+      send(socket, { type: "error", error: "Unsupported control message." });
+    });
+
+    socket.on("close", () => {
+      if (socket.dreamSourceTicketTimer) clearTimeout(socket.dreamSourceTicketTimer);
+      clearPingsFor(socket);
+      closeStreamsFor(socket, "endpoint-disconnected");
+      owners.delete(socket);
+      if (socket.dreamRole === "source" && sources.get(socket.dreamSourceId) === socket) {
+        sources.delete(socket.dreamSourceId);
+        broadcastSourceState();
+      }
+    });
+    socket.on("error", () => {});
+  });
+
+  wss.issueSourceTicket = issueSourceTicket;
+  wss.sourceConnected = sourceConnected;
+  wss.getSources = () => [...sources.values()].map(sourceDetails);
+  return wss;
+}
+
+module.exports = { attachDreamWifiTunnel };

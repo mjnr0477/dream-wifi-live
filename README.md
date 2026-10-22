@@ -11,6 +11,11 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 - A source can relay traffic only while online and explicitly configured to share its network. The tunnel is a bounded HTTP/HTTPS relay, not a full-device VPN.
 - Public tunnel clients have per-IP connection limits and per-client stream limits. Source devices still require the server-only source token.
 
+## Sharing and receiving roles
+- `/share.html` is the source-device setup guide. It explains that a person must run the authorized source agent; opening a link does not activate sharing.
+- `/receive.html` is the receiver dashboard. It lists connected source agents and can send a tunnel ping to verify the source responds.
+- A successful ping validates the control connection only, not end-to-end browsing. The receiver still needs a compatible local SOCKS client and a proxy-capable app; whole-device Android routing requires a dedicated VPN-capable app. Do not advertise one-tap/full-device internet access until that is implemented and tested.
+
 ## Environment
 Server:
 - `DREAM_WIFI_SOURCE_TOKEN`: long random secret used only by authorized source agents. Never put it in browser code.

@@ -71,6 +71,17 @@ async function detectSourceName() {
   }
   return String(os.hostname() || "Dream Wi-Fi source").trim().slice(0, 80) || "Dream Wi-Fi source";
 }
+async function detectSourceCoordinates() {
+  if (sourceLatitude !== null && sourceLongitude !== null) return { latitude: sourceLatitude, longitude: sourceLongitude };
+  try {
+    const { stdout } = await execFileAsync("termux-location", ["-p", "network", "-r", "once"], { timeout: 8000, maxBuffer: 8192 });
+    const location = JSON.parse(stdout);
+    const latitude = Number(location.latitude), longitude = Number(location.longitude);
+    if (Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+        Number.isFinite(longitude) && longitude >= -180 && longitude <= 180) return { latitude, longitude };
+  } catch (_) {}
+  return { latitude: null, longitude: null };
+}
 function send(payload) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
 }
@@ -224,9 +235,9 @@ function connect() {
         currentSocket.terminate();
       }
     }, 25000);
-    detectSourceName().then(sourceName => {
+    Promise.all([detectSourceName(), detectSourceCoordinates()]).then(([sourceName, location]) => {
       if (stopped || currentSocket !== socket || currentSocket.readyState !== WebSocket.OPEN) return;
-      currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName, latitude: sourceLatitude, longitude: sourceLongitude }));
+      currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName, latitude: location.latitude, longitude: location.longitude }));
     }).catch(() => {
       if (!stopped && currentSocket === socket && currentSocket.readyState === WebSocket.OPEN) {
         currentSocket.send(JSON.stringify({ type: "register", role: "source", sourceToken, sourceId, sourceName: os.hostname(), latitude: sourceLatitude, longitude: sourceLongitude }));

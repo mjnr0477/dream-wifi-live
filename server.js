@@ -77,9 +77,11 @@ app.post("/api/dream-wifi/source-ticket", async (req, res) => {
 
 const publicDir = path.join(__dirname, "public");
 app.use(express.static(publicDir));
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api/")) return next();
-  return res.sendFile(path.join(publicDir, "index.html"));
+app.use((req, res, next) => {
+  if (req.method === "GET" && !req.path.startsWith("/api/")) {
+    return res.sendFile(path.join(publicDir, "index.html"));
+  }
+  return next();
 });
 app.use((_req, res) => res.status(404).json({ success: false, error: "Not found." }));
 

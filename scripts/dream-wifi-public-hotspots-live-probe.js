@@ -3,8 +3,8 @@
 const { buildOverpassQuery } = require("../product/dream_wifi_public_hotspots");
 
 const endpoints = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter"
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 ];
 
 async function main() {
@@ -16,7 +16,8 @@ async function main() {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-          "accept": "application/json"
+          "accept": "application/json",
+          "user-agent": "Dream-Wi-Fi/1.0 (+https://github.com/mjnr0477/dream-wifi-live)"
         },
         body: new URLSearchParams({ data: query }),
         signal: AbortSignal.timeout(5000)

@@ -22,4 +22,4 @@ Build with the deployed Dream Wi-Fi base URL so the app does not depend on Dream
 ./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
 ```
 
-The standalone service must be deployed and configured first. Do not use the placeholder host literally. The app's login and refresh endpoints are provided by the standalone service.
+The standalone service must be deployed and configured first. Do not use the placeholder host literally. **Important integration blocker:** the current standalone `server.js` does not implement `/api/auth/login`, `/api/auth/refresh`, or `/api/dream-wifi/source-ticket`; therefore this prototype cannot complete sign-in/source-ticket setup against the standalone service yet. Do not install or distribute this APK as a working app. The next implementation step is a standalone, consent-based pairing flow that issues short-lived source/receiver credentials, scopes each receiver to the source that shared its link, and removes the Dream Education account dependency.

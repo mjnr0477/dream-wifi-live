@@ -80,7 +80,7 @@ async function fetchPublicHotspots({ latitude, longitude, radiusKm, fetchImpl = 
           "user-agent": "Dream-WiFi/1.0 (+https://github.com/mjnr0477/dream-wifi-live)"
         },
         body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(22000)
+        signal: AbortSignal.timeout(8000)
       });
       if (!response.ok) throw new Error("OpenStreetMap hotspot data service returned HTTP " + response.status);
       const payload = await response.json();

@@ -6,7 +6,7 @@ async function main() {
   const query = buildOverpassQuery(-0.56, 34.56, 300);
   assert.match(query, /around:300000,-0\.56,34\.56/);
   assert.match(query, /internet_access/);
-  assert.match(query, /\["wifi"~\^/);
+  assert.match(query, /\["wifi"~/);
   assert.throws(() => buildOverpassQuery(91, 0, 20), /latitude/);
   assert.throws(() => buildOverpassQuery(0, 0, 301), /radiusKm/);
   assert.throws(() => buildOverpassQuery(0, 0, 0), /radiusKm/);

@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js && node --check product/dream_wifi_tunnel_engine.js && node --check scripts/dream-wifi-source-agent.js && node --check scripts/dream-wifi-proxy-client.js"
+    "test": "node --check server.js && node --check product/dream_wifi_tunnel_engine.js && node --check product/dream_wifi_source_registry.js && node --check product/dream_wifi_source_discovery.js && node --check scripts/dream-wifi-source-agent.js && node --check scripts/dream-wifi-proxy-client.js && node scripts/dream-wifi-source-registry-smoke-test.js && node scripts/dream-wifi-source-discovery-smoke-test.js && node scripts/dream-wifi-tunnel-control-smoke-test.js && node scripts/dream-wifi-tunnel-protocol-integration-test.js && node scripts/dream-wifi-multi-source-smoke-test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.114.0",

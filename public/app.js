@@ -80,6 +80,18 @@
     }
     throw new Error("Server and direct map lookups are unavailable. " + failures.join("; "));
   }
+  function renderExternalQueryFallback() {
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = "If automatic map requests are blocked, you can try this query in Overpass Turbo. This opens a third-party site and includes your coordinates and selected search radius.";
+    const link = document.createElement("a");
+    link.href = "https://overpass-turbo.eu/?Q=" + encodeURIComponent(buildBrowserOverpassQuery(position.latitude, position.longitude, Number($("radius").value)));
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open Wi-Fi query in Overpass Turbo";
+    link.style.color = "#86efac";
+    $("hotspots").append(note, link);
+  }
   function renderSources(data) {
     $("sources").replaceChildren();
     $("source-summary").textContent = data.count + " participating sources within " + data.radius_km + " km · " + data.online_count + " online";
@@ -149,8 +161,9 @@
       renderHotspots(hotspotResult.value);
       messages.push(hotspotResult.value.note);
     } else {
-      $("hotspot-summary").textContent = "Public hotspot data unavailable.";
+      $("hotspot-summary").textContent = "Automatic public hotspot lookup is unavailable.";
       $("hotspots").replaceChildren();
+      renderExternalQueryFallback();
     }
     $("search").disabled = false;
     status(messages.join("\n"));

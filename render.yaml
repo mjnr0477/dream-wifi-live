@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: dream-wifi-live
+    runtime: node
+    plan: free
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DREAM_WIFI_OWNER_EMAIL
+        sync: false
+      - key: DREAM_WIFI_SOURCE_TOKEN
+        sync: false

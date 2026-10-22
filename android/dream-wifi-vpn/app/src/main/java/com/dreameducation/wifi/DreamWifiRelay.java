@@ -40,8 +40,8 @@ import okhttp3.WebSocketListener;
  * The hosting provider's captive portal/package authentication is still required for internet access.
  */
 final class DreamWifiRelay {
-    static final String BASE_URL = "https://dream-education-live-4.onrender.com";
-    static final String TUNNEL_URL = "wss://dream-education-live-4.onrender.com/api/dream-education/dream-wifi/tunnel";
+    static final String BASE_URL = BuildConfig.DREAM_WIFI_BASE_URL;
+    static final String TUNNEL_URL = BASE_URL.isEmpty() ? "" : BASE_URL.replaceFirst("^https://", "wss://").replaceFirst("^http://", "ws://") + "/api/dream-education/dream-wifi/tunnel";
     static final int LOCAL_PROXY_PORT = 1081;
     private static final int MAX_CHUNK = 12 * 1024;
     private static final int MAX_UDP_BYTES = 8192;

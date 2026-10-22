@@ -45,12 +45,6 @@ async function main() {
   const address = server.address();
   const wss = attachDreamWifiTunnel(server, {
     sourceToken: "shared-test-token",
-    supabaseAuth: { auth: { async getUser(token) {
-      return token === "valid-owner-token"
-        ? { data: { user: { id: "owner-1", email: "owner@example.test" } }, error: null }
-        : { data: { user: null }, error: new Error("invalid token") };
-    } } },
-    isOwnerAccount: ({ email }) => email === "owner@example.test"
   });
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
   let sourceA, sourceB, owner;

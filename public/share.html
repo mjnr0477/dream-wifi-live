@@ -39,7 +39,7 @@
 "use strict";
 const status = document.getElementById("status");
 document.getElementById("share-link").addEventListener("click", async () => {
-  const url = location.origin + "/share";
+  const url = location.origin + "/share.html";
   const data = {title:"Share internet with Dream Wi-Fi",text:"Open this page to learn how to volunteer a Wi-Fi connection with Dream Wi-Fi:",url};
   try {
     if (navigator.share) { await navigator.share(data); status.textContent = "Share sheet opened."; }

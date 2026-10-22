@@ -43,3 +43,16 @@ Passing tests validate query construction and result filtering, not real-world m
 
 ## Map attribution
 Public hotspot results are based on © OpenStreetMap contributors. Data coverage and accuracy vary by location.
+
+## Real internet verification and mobile app status
+
+The receiver page now offers a real outbound HTTP probe over the selected source relay: it opens a TCP stream to `example.com:80`, sends an HTTP request, and only reports a pass when an HTTP response is received. This checks source-side outbound connectivity and returned relay data, unlike a control-plane ping. It is a diagnostic only, not full-device internet sharing.
+
+A consumer one-tap Android app is not yet implemented. Do not present the web pages as a substitute for it. The required mobile implementation must:
+- enroll the source device with a short-lived, revocable pairing credential rather than exposing the server's long-lived source token;
+- use Android's active network and reconnect with bounded backoff;
+- implement an Android `VpnService` receiver that routes supported traffic through the selected source, with user-approved VPN consent;
+- automatically choose a reachable local path when devices are on the same LAN or the TLS WebSocket relay when remote, while falling back safely when local connectivity is blocked;
+- perform an end-to-end HTTP/HTTPS test and report throughput, latency, loss, and disconnects without claiming that a source is healthy based only on a WebSocket ping.
+
+Android and network policy constraints mean no app can guarantee internet when the source network has no internet, blocks relay traffic, or lacks capacity. The app must show a clear failure instead of falsely reporting connected.

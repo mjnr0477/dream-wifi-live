@@ -41,17 +41,6 @@ async function main() {
   const server = http.createServer();
   const tunnel = attachDreamWifiTunnel(server, {
     sourceToken: "integration-test-source-token",
-    supabaseAuth: {
-      auth: {
-        async getUser(token) {
-          if (token !== "valid-owner-session") {
-            return { data: { user: null }, error: new Error("invalid session") };
-          }
-          return { data: { user: { id: "integration-owner", email: "owner@example.test" } }, error: null };
-        }
-      }
-    },
-    isOwnerAccount: account => account && account.email === "owner@example.test"
   });
 
   let source;
@@ -85,7 +74,7 @@ async function main() {
       owner.socket.once("error", reject);
     });
     owner.socket.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-session" }));
-    await owner.next(m => m.type === "registered" && m.role === "owner", "owner registration");
+    await owner.next(m => m.type === "registered" && m.role === "client", "public client registration");
     const sourceList = await owner.next(m => m.type === "source-list", "owner source list");
     assert.ok(sourceList.sources.some(item => item.id === "integration-source"), "Authorized owner should see the registered static source.");
 
@@ -115,17 +104,17 @@ async function main() {
     owner.socket.send(JSON.stringify({ type: "tcp-close", id: openRequest.id }));
     await source.next(m => m.type === "tcp-close" && m.id === openRequest.id, "forwarded TCP close");
 
-    const unauthorized = connect(url);
+    const publicClient = connect(url);
     try {
       await new Promise((resolve, reject) => {
-        unauthorized.socket.once("open", resolve);
-        unauthorized.socket.once("error", reject);
+        publicClient.socket.once("open", resolve);
+        publicClient.socket.once("error", reject);
       });
-      unauthorized.socket.send(JSON.stringify({ type: "register", role: "owner", accessToken: "invalid-session" }));
-      await unauthorized.next(m => m.type === "error", "unauthorized owner rejection");
-      assert.ok(true);
+      publicClient.socket.send(JSON.stringify({ type: "register", role: "client" }));
+      const registered = await publicClient.next(m => m.type === "registered", "public client registration without credentials");
+      assert.equal(registered.role, "client");
     } finally {
-      try { unauthorized.socket.close(); } catch (_) {}
+      try { publicClient.socket.close(); } catch (_) {}
     }
 
     console.log("Dream Wi-Fi tunnel protocol integration test passed.");

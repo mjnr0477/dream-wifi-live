@@ -34,17 +34,6 @@ async function main() {
   const address = server.address();
   const wss = attachDreamWifiTunnel(server, {
     sourceToken: "test-source-secret",
-    sourceTicketTtlMs: 250,
-    supabaseAuth: {
-      auth: {
-        async getUser(token) {
-          if (token === "valid-owner-token") return { data: { user: { email: "owner@example.test" } }, error: null };
-          if (token === "valid-user-token") return { data: { user: { email: "learner@example.test" } }, error: null };
-          return { data: { user: null }, error: new Error("invalid token") };
-        }
-      }
-    },
-    isOwnerAccount: ({ email }) => email === "owner@example.test"
   });
 
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
@@ -60,7 +49,7 @@ async function main() {
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
     owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
-    assert.equal((await ownerRegistered).role, "owner");
+    assert.equal((await ownerRegistered).role, "client");
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));

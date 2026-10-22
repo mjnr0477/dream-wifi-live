@@ -171,6 +171,13 @@ function attachDreamWifiTunnel(server, options = {}) {
             ? proposedId
             : crypto.createHash("sha256").update(sourceName + "|" + (sourceAuth.ownerId || "static")).digest("hex").slice(0, 24);
           const previous = sources.get(sourceId);
+          if (previous && previous !== socket && previous.readyState === WebSocket.OPEN) {
+            // A shared source token authorizes source agents, not ownership of an ID.
+            // Never let a second connection evict a live source by claiming its ID.
+            send(socket, { type: "error", error: "Source ID is already connected." });
+            try { socket.close(1013, "Source ID already connected"); } catch (_) {}
+            return;
+          }
           if (previous && previous !== socket &&
               (previous.dreamSourceOwnerId !== sourceAuth.ownerId ||
                previous.dreamSourceAuth !== sourceAuth.kind)) {

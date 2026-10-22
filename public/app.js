@@ -1,67 +1,48 @@
 "use strict";
 (async function () {
   const $ = id => document.getElementById(id);
-  let client = null;
   const status = message => { $("status").textContent = message; };
-  let session = null;
-  try {
-    const response = await fetch("/api/dream-wifi/config");
-    const config = await response.json();
-    if (!config.configured || !config.supabaseUrl || !config.supabaseAnonKey) {
-      $("config-warning").textContent = "Owner sign-in is not configured yet. Set SUPABASE_URL, SUPABASE_ANON_KEY and DREAM_WIFI_OWNER_EMAIL in the host environment.";
-      $("login").disabled = true;
-      return;
+  let position = null;
+  function renderSources(data) {
+    $("sources").replaceChildren();
+    $("summary").textContent = data.count + " services within " + data.radius_km + " km · " + data.online_count + " online";
+    if (!data.sources.length) {
+      const p = document.createElement("p"); p.className = "muted";
+      p.textContent = "No participating services with known coordinates were found. This does not mean there are no routers nearby.";
+      $("sources").appendChild(p); return;
     }
-    $("config-warning").textContent = "Service configured. Use the owner account configured for this deployment.";
-    const sdk = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
-    client = sdk.createClient(config.supabaseUrl, config.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true } });
-    const current = await client.auth.getSession();
-    session = current.data && current.data.session;
-    renderSession();
-    if (session) await refreshStatus();
-  } catch (error) {
-    $("config-warning").textContent = "Could not initialize sign-in. Check service configuration and network access.";
+    for (const source of data.sources) {
+      const item = document.createElement("article"); item.className = "tile";
+      const title = document.createElement("strong"); title.textContent = source.name;
+      const details = document.createElement("p"); details.className = "muted";
+      details.textContent = source.distance_km + " km away · " + (source.connected ? "Online" : "Offline — not connectable now") + " · Last seen " + new Date(source.last_seen).toLocaleString();
+      item.append(title, details); $("sources").appendChild(item);
+    }
+    status(data.note);
   }
-  function renderSession() {
-    $("signin").classList.toggle("hidden", Boolean(session));
-    $("signed-in").classList.toggle("hidden", !session);
-    $("session-status").textContent = session ? "Signed in; checking owner permissions…" : "Signed out";
-  }
-  async function refreshStatus() {
-    if (!session) return;
+  async function search() {
+    if (!position) return;
+    status("Searching services within " + $("radius").value + " km…");
     try {
-      const response = await fetch("/api/dream-wifi/owner-status", { headers: { Authorization: "Bearer " + session.access_token } });
+      const params = new URLSearchParams({ latitude: position.latitude, longitude: position.longitude, radius_km: $("radius").value });
+      const response = await fetch("/api/wifi/sources?" + params);
       const data = await response.json();
-      if (!response.ok) {
-        $("session-status").textContent = "Not authorized";
-        status(data.error || "Owner authorization failed.");
-        return;
-      }
-      $("session-status").textContent = "Owner authenticated";
-      status("Owner access verified.\nSource token configured: " + data.source_endpoint_configured +
-        "\nSource connected: " + data.source_connected +
-        "\nLive access enabled: " + data.live_access_enabled +
-        "\nPackages enabled: " + data.packages_enabled +
-        "\n\nA connected source is not proof that Quant traffic works end-to-end.");
-    } catch (_) { status("Could not reach the status endpoint."); }
+      if (!response.ok) throw new Error(data.error || "Search failed.");
+      renderSources(data);
+    } catch (error) { status(error.message || "Could not search for services."); }
   }
-  $("login").addEventListener("click", async () => {
-    if (!client) return;
-    $("login").disabled = true;
-    try {
-      const result = await client.auth.signInWithPassword({ email: $("email").value.trim(), password: $("password").value });
-      if (result.error) throw result.error;
-      session = result.data.session;
-      renderSession();
-      await refreshStatus();
-    } catch (error) { status(error.message || "Sign-in failed."); }
-    finally { $("login").disabled = false; }
+  $("locate").addEventListener("click", () => {
+    if (!navigator.geolocation) { status("This browser does not support location detection."); return; }
+    $("locate").disabled = true; status("Requesting your location…");
+    navigator.geolocation.getCurrentPosition(async p => {
+      position = { latitude: p.coords.latitude, longitude: p.coords.longitude };
+      $("location").textContent = "Location detected. Coordinates are used for this search.";
+      $("locate").disabled = false; await search();
+    }, error => {
+      $("locate").disabled = false;
+      status(error.code === 1 ? "Location permission denied. Allow location access and retry." : "Could not detect location. Check device location services and retry.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   });
-  $("refresh").addEventListener("click", refreshStatus);
-  $("logout").addEventListener("click", async () => {
-    if (client) await client.auth.signOut();
-    session = null;
-    renderSession();
-    status("Signed out.");
-  });
+  $("search").addEventListener("click", search);
+  status("No sign-in or Supabase account is required. Allow location to search.");
 })();

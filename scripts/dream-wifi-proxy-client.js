@@ -1,9 +1,8 @@
 "use strict";
 
 require("dotenv").config();
-const readline = require("node:readline/promises");
 
-// Local SOCKS5 client for owner-authorized HTTP/HTTPS TCP and bounded public UDP through the source endpoint.
+// Local SOCKS5 client for public-client HTTP/HTTPS TCP and bounded public UDP through the source endpoint.
 // This is not an Android VPNService and does not automatically route all device traffic.
 const net = require("node:net");
 const dgram = require("node:dgram");
@@ -11,7 +10,6 @@ const crypto = require("node:crypto");
 const { WebSocket } = require("ws");
 
 const tunnelUrl = String(process.env.DREAM_WIFI_TUNNEL_URL || "").trim();
-let accessToken = String(process.env.DREAM_WIFI_OWNER_ACCESS_TOKEN || "").trim();
 const port = Number(process.env.DREAM_WIFI_PROXY_PORT || 1080);
 const selectedSourceId = String(process.env.DREAM_WIFI_SELECTED_SOURCE_ID || "").trim();
 const MAX_CHUNK = 12 * 1024;
@@ -31,88 +29,6 @@ if (!/^wss:\/\//i.test(tunnelUrl)) {
 if (!Number.isInteger(port) || port < 1024 || port > 65535) {
   console.error("DREAM_WIFI_PROXY_PORT must be an available port between 1024 and 65535.");
   process.exit(1);
-}
-
-async function readHiddenPassword() {
-  const stdin = process.stdin;
-  if (!stdin.isTTY || typeof stdin.setRawMode !== "function") {
-    throw new Error("A secure interactive terminal is required to enter your password.");
-  }
-  return new Promise((resolve, reject) => {
-    let password = "";
-    process.stdout.write("Supabase password (input hidden): ");
-    stdin.setRawMode(true);
-    stdin.setEncoding("utf8");
-    stdin.resume();
-    const cleanup = () => {
-      stdin.off("data", onData);
-      stdin.setRawMode(false);
-      process.stdout.write("\n");
-    };
-    const onData = chunk => {
-      for (const char of chunk) {
-        if (char === "\u0003") {
-          cleanup();
-          reject(new Error("Login cancelled."));
-          return;
-        }
-        if (char === "\r" || char === "\n") {
-          cleanup();
-          resolve(password);
-          return;
-        }
-        if (char === "\u007f" || char === "\b") {
-          password = password.slice(0, -1);
-        } else if (char >= " " && char !== "\u007f") {
-          password += char;
-        }
-      }
-    };
-    stdin.on("data", onData);
-  });
-}
-
-async function resolveOwnerAccessToken() {
-  if (accessToken) return accessToken;
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  let email;
-  try {
-    email = (await rl.question("Dream Education login email: ")).trim();
-  } finally {
-    rl.close();
-  }
-  if (!email) throw new Error("An email address is required.");
-
-  const password = await readHiddenPassword();
-  if (!password) throw new Error("A password is required.");
-
-  const loginUrl = new URL(tunnelUrl);
-  loginUrl.protocol = "https:";
-  loginUrl.pathname = "/api/auth/login";
-  loginUrl.search = "";
-  loginUrl.hash = "";
-
-  let response;
-  try {
-    response = await fetch(loginUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      signal: AbortSignal.timeout(15000)
-    });
-  } catch (_) {
-    throw new Error("Could not reach Dream Education login. Check the hosted service and try again.");
-  }
-
-  let result;
-  try { result = await response.json(); } catch (_) { result = null; }
-  const token = result && result.session && result.session.access_token;
-  if (!response.ok || result?.success !== true || typeof token !== "string" || !token) {
-    const reason = typeof result?.error === "string" ? result.error : "Login was rejected.";
-    throw new Error(reason);
-  }
-  return token;
 }
 
 let socket = null;
@@ -317,12 +233,12 @@ function connect() {
         console.error("Dream Tunnel heartbeat failed:", error.message);
       }
     }, 25000);
-    currentSocket.send(JSON.stringify({ type: "register", role: "owner", accessToken }));
+    currentSocket.send(JSON.stringify({ type: "register", role: "client" }));
   });
   currentSocket.on("message", raw => {
     let message;
     try { message = JSON.parse(raw.toString("utf8")); } catch (_) { return; }
-    if (message.type === "registered" && message.role === "owner") {
+    if (message.type === "registered" && message.role === "client") {
       ownerReady = true;
       startProxy();
       console.log("Dream Tunnel owner client authenticated.");
@@ -418,10 +334,4 @@ function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-resolveOwnerAccessToken().then(token => {
-  accessToken = token;
-  connect();
-}).catch(error => {
-  console.error("Dream Tunnel login failed:", error.message);
-  process.exitCode = 1;
-});
+connect();

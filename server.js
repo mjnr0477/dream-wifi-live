@@ -12,6 +12,10 @@ const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
 const supabaseAnonKey = String(process.env.SUPABASE_ANON_KEY || "").trim();
 const ownerEmail = String(process.env.DREAM_WIFI_OWNER_EMAIL || "").trim().toLowerCase();
 const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
+const supabaseServiceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+const supabase = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
 const supabaseAuth = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
@@ -42,6 +46,36 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "32kb" }));
+if (supabaseAuth && supabase) {
+  require("./product/dream_wifi_source_registry").registerDreamWifiSourceRegistryRoutes(app, { supabaseAuth, supabase });
+}
+app.post("/api/auth/login", async (req, res) => {
+  if (!supabaseAuth) return res.status(503).json({ success: false, error: "Supabase authentication is not configured." });
+  const email = String(req.body && req.body.email || "").trim();
+  const password = String(req.body && req.body.password || "");
+  if (!email || !password) return res.status(400).json({ success: false, error: "Email and password are required." });
+  try {
+    const result = await supabaseAuth.auth.signInWithPassword({ email, password });
+    if (result.error || !result.data || !result.data.user || !result.data.session) {
+      return res.status(401).json({ success: false, error: "Email or password is invalid." });
+    }
+    if (!isOwnerAccount({ email: result.data.user.email })) {
+      return res.status(403).json({ success: false, error: "Owner access is required." });
+    }
+    return res.json({ success: true, session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token } });
+  } catch (_) { return res.status(401).json({ success: false, error: "Sign-in failed." }); }
+});
+app.post("/api/auth/refresh", async (req, res) => {
+  if (!supabaseAuth) return res.status(503).json({ success: false, error: "Supabase authentication is not configured." });
+  const refreshToken = String(req.body && req.body.refresh_token || "").trim();
+  if (!refreshToken) return res.status(400).json({ success: false, error: "Refresh token is required." });
+  try {
+    const result = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
+    if (result.error || !result.data || !result.data.user || !result.data.session) return res.status(401).json({ success: false, error: "Session expired; sign in again." });
+    if (!isOwnerAccount({ email: result.data.user.email })) return res.status(403).json({ success: false, error: "Owner access is required." });
+    return res.json({ success: true, session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token } });
+  } catch (_) { return res.status(401).json({ success: false, error: "Session refresh failed." }); }
+});
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live" }));
 app.get("/api/dream-wifi/config", (_req, res) => {
   res.json({

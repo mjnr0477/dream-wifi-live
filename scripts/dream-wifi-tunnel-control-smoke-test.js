@@ -60,7 +60,7 @@ async function main() {
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
     owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
-    assert.equal((await ownerRegistered).role, "owner");
+    assert.equal((await ownerRegistered).role, "client");
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));

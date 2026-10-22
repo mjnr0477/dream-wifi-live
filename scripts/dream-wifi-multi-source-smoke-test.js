@@ -59,7 +59,7 @@ async function main() {
     sourceB = await registerSource(url, "source-b", "Remote test gateway");
     owner = new WebSocket(url);
     await waitOpen(owner);
-    const registered = waitMessage(owner, message => message.type === "registered" && message.role === "owner");
+    const registered = waitMessage(owner, message => message.type === "registered" && message.role === "client");
     const list = waitMessage(owner, message => message.type === "source-list" && Array.isArray(message.sources) && message.sources.length === 2);
     owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
     await registered;
@@ -75,8 +75,8 @@ async function main() {
       type: "register", role: "source", sourceToken: "shared-test-token",
       sourceId: "source-b", sourceName: "Spoofed source"
     }));
-    assert.match((await spoofDenied).error, /different authorization scope/i);
-    assert.equal(sourceB.readyState, WebSocket.OPEN, "Cross-scope source ID collision must not evict the registered owner source.");
+    assert.match((await spoofDenied).error, /already connected/i);
+    assert.equal(sourceB.readyState, WebSocket.OPEN, "Duplicate source ID must not evict the registered source.");
     assert.equal(wss.getSources().length, 2);
     spoof.terminate();
 

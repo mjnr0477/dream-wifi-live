@@ -10,6 +10,7 @@ const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
 const publicDir = path.join(__dirname, "public");
 const dataDir = path.resolve(process.env.DREAM_WIFI_DATA_DIR || path.join(__dirname, "data"));
 const registryFile = path.join(dataDir, "sources.json");
+const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
 let knownSources = new Map();
 try {
   const saved = JSON.parse(fs.readFileSync(registryFile, "utf8"));
@@ -61,7 +62,22 @@ app.get("/api/wifi/sources", (req, res) => {
   const sources = [...knownSources.values()].map(source => ({ ...source, connected: liveIds.has(source.id), distance_km: Math.round(distanceKm(latitude, longitude, source.latitude, source.longitude) * 10) / 10 }))
     .filter(source => source.distance_km <= radiusKm).sort((a, b) => a.distance_km - b.distance_km).slice(0, 200);
   res.json({ success: true, radius_km: radiusKm, sources, count: sources.length, online_count: sources.filter(source => source.connected).length,
-    note: "The directory contains only participating Dream Wi-Fi sources with reported coordinates. Offline entries are not connectable. A website cannot scan every router across 300 km." });
+    note: "This directory contains participating Dream Wi-Fi source devices with reported coordinates. Offline entries are not connectable." });
+});
+app.get("/api/wifi/hotspots", async (req, res) => {
+  const latitude = coordinate(req.query.latitude, -90, 90);
+  const longitude = coordinate(req.query.longitude, -180, 180);
+  const radiusKm = Number(req.query.radius_km || 300);
+  if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search public hotspots." });
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 300." });
+  try {
+    const result = await fetchPublicHotspots({ latitude, longitude, radiusKm });
+    res.set("Cache-Control", "public, max-age=300");
+    return res.json(result);
+  } catch (error) {
+    console.error("Public Wi-Fi hotspot lookup failed:", String(error.message || "lookup_error").slice(0, 180));
+    return res.status(503).json({ success: false, error: "The public Wi-Fi map is temporarily unavailable. Your participating-source search is still available; try public hotspot search again shortly." });
+  }
 });
 app.use(express.static(publicDir));
 app.use((req, res, next) => { if (req.method === "GET" && !req.path.startsWith("/api/")) return res.sendFile(path.join(publicDir, "index.html")); next(); });

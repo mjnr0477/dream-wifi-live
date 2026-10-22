@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07110d">
+<title>Share internet · Dream Wi-Fi</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0}header,main{width:min(760px,calc(100% - 32px));margin:auto}header{padding:22px 0;border-bottom:1px solid #243b30;display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-weight:900;letter-spacing:.08em}.brand span,.eyebrow{color:#86efac}a{color:#86efac;overflow-wrap:anywhere}main{padding:32px 0 72px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:.78rem;font-weight:800}h1{font-size:clamp(2.1rem,8vw,4rem);line-height:1.04;letter-spacing:-.04em;margin:14px 0}.lead,.muted{color:#bac7c0;line-height:1.7}.card{margin-top:18px;border:1px solid #2b4939;border-radius:16px;padding:20px;background:#0d1b14}.notice{border-left:4px solid #fbbf24;padding:12px 14px;background:#211c0e;border-radius:8px;color:#fef3c7;line-height:1.65}.steps{padding-left:22px;line-height:1.8}.steps li{padding:5px 0}button{font:inherit;border-radius:10px;padding:12px 16px;min-height:46px;border:0;background:#4ade80;color:#052e16;font-weight:850;cursor:pointer}button.secondary{background:#20382b;color:#e2e8f0;border:1px solid #476454}.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}#status{white-space:pre-wrap;line-height:1.6;color:#cbd5e1}.muted{font-size:.92rem}code{white-space:pre-wrap;overflow-wrap:anywhere;background:#07110d;padding:2px 5px;border-radius:5px}footer{margin-top:26px}@media(max-width:520px){header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header><div class="brand">DREAM <span>WI-FI</span></div><a href="/">Back to Wi-Fi discovery</a></header>
+<main>
+<div class="eyebrow">Participating source device</div>
+<h1>Share your internet with Dream Wi-Fi.</h1>
+<p class="lead">If you're connected to Wi-Fi and want to volunteer your connection, this page explains the next step. Only share a connection you own or have permission to share.</p>
+<section class="card">
+<h2>Before you start</h2>
+<div class="notice"><strong>Important:</strong> Opening this link alone does not turn on internet sharing. A browser cannot start a background network relay on your phone. The source connector must be installed and authorized, and it must stay running while you share.</div>
+<ol class="steps">
+<li>Use a device connected to a Wi-Fi network with working internet.</li>
+<li>Install and run the Dream Wi-Fi source connector on that device. Android currently requires a compatible terminal environment; this is not a one-tap browser feature.</li>
+<li>Authorize the connector with a source credential provided through a secure setup process. Never post a source token publicly or send it in this link.</li>
+<li>Keep the device online. When the connector is connected, the source should appear as online in Dream Wi-Fi discovery.</li>
+<li>Stop the connector whenever you want to stop sharing. The relay is limited and is not a full-device VPN.</li>
+</ol>
+<p class="muted">The current hosted service has the tunnel control plane, but a self-service pairing flow and a one-tap Android sharing app are not yet available. Do not assume your internet is being shared until the source appears online and a real connection test succeeds.</p>
+<div class="row"><button id="share-link">Share this setup link</button><button class="secondary" id="check-status">Check source status</button></div>
+<p id="status" role="status" aria-live="polite"></p>
+</section>
+<section class="card">
+<h2>What the source shares</h2>
+<p class="muted">The current source connector relays supported HTTP/HTTPS traffic for a remote Dream Wi-Fi client. It does not give the remote person access to your private router admin page or local devices. Sharing may use your data plan, consume bandwidth, and be subject to the Wi-Fi provider's rules. Only enable it when you understand and accept those limits.</p>
+</section>
+<footer class="muted">Dream Wi-Fi is separate from Dream Education. Public hotspot map listings do not themselves provide internet access.</footer>
+</main>
+<script>
+"use strict";
+const status = document.getElementById("status");
+document.getElementById("share-link").addEventListener("click", async () => {
+  const url = location.origin + "/share";
+  const data = {title:"Share internet with Dream Wi-Fi",text:"Open this page to learn how to volunteer a Wi-Fi connection with Dream Wi-Fi:",url};
+  try {
+    if (navigator.share) { await navigator.share(data); status.textContent = "Share sheet opened."; }
+    else if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); status.textContent = "Setup link copied: " + url; }
+    else { status.textContent = "Copy this setup link and send it: " + url; }
+  } catch (error) { if (error && error.name !== "AbortError") status.textContent = "Copy and send this link: " + url; }
+});
+document.getElementById("check-status").addEventListener("click", async () => {
+  status.textContent = "Checking the source directory…";
+  try {
+    const response = await fetch("/api/wifi/sources?latitude=0.63063&longitude=34.45254&radius_km=300");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Status request failed.");
+    const online = (data.sources || []).filter(source => source.connected);
+    status.textContent = online.length
+      ? online.length + " participating source(s) currently appear online in the sample search area. This does not yet prove end-to-end browsing."
+      : "No online participating source was found in the sample search area. This check is only a directory check, not a connection test.";
+  } catch (error) { status.textContent = "Could not check source status: " + (error.message || "request failed"); }
+});
+</script>
+</body>
+</html>

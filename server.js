@@ -82,4 +82,4 @@ app.get("/api/wifi/hotspots", async (req, res) => {
 app.use(express.static(publicDir));
 app.use((req, res, next) => { if (req.method === "GET" && !req.path.startsWith("/api/")) return res.sendFile(path.join(publicDir, "index.html")); next(); });
 app.use((_req, res) => res.status(404).json({ success: false, error: "Not found." }));
-server.listen(port, "0.0.0.0", () => console.log("Dream Wi-Fi listening on port " + port + " (no Supabase; public client access)"));
+server.listen(port, process.env.DREAM_WIFI_BIND_HOST || "0.0.0.0", () => console.log("Dream Wi-Fi listening on port " + port + " (no Supabase; public client access)"));

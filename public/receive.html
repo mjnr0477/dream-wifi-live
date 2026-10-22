@@ -1,2 +1,34 @@
 <!doctype html>
-<!-- unchanged except automatic source discovery on page load -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07110d"><title>Receive Internet · Dream Wi-Fi</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0}main{width:min(720px,calc(100% - 32px));margin:36px auto}a{color:#86efac}h1{font-size:clamp(2rem,7vw,3.5rem);line-height:1.05}.muted{color:#bac7c0;line-height:1.65}.card{border:1px solid #2b4939;border-radius:16px;padding:20px;margin:18px 0;background:#0d1b14}button,select{font:inherit;padding:12px;border-radius:9px;min-height:44px}button{background:#4ade80;color:#052e16;border:0;font-weight:800}select{background:#07110d;color:#f1f5f9;border:1px solid #476454;max-width:100%}.row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}#status{white-space:pre-wrap;line-height:1.6}.source{padding:10px;border:1px solid #294235;border-radius:10px;margin:8px 0}
+</style></head>
+<body><main><p><a href="/">← Dream Wi-Fi</a></p><p style="color:#86efac;font-weight:800;letter-spacing:.12em">RECEIVER DEVICE</p>
+<h1>Receive internet through Dream Wi-Fi</h1>
+<p class="muted">This page automatically checks for participating source devices that are online. Choose one to test its control connection.</p>
+<section class="card"><h2>1. Find a sharing device</h2><div class="row"><button id="refresh">Find online sources</button><select id="source" aria-label="Choose source" disabled><option>Loading sources…</option></select><button id="test" disabled>Test source</button></div><div id="sources"></div><p id="status" role="status" aria-live="polite">Connecting to Dream Wi-Fi…</p></section>
+<section class="card"><h2>2. Important limitation</h2><p class="muted">A successful test only confirms that the source responds. This website cannot turn on sharing on another phone or route all internet traffic through your phone. One-tap sharing and receiving requires a native Android app with an authorized source connector and Android VPN permission. Do not share source tokens or install unknown APKs.</p><p class="muted">The current service does not yet provide one-tap whole-phone internet access.</p></section></main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);let socket=null,sources=[],pending=null,timer=null;
+const wsUrl=(location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/dream-education/dream-wifi/tunnel";
+function status(s){$("status").textContent=s}
+function close(){if(timer)clearTimeout(timer);timer=null;pending=null;if(socket){try{socket.close()}catch(_){} }socket=null}
+function render(){const sel=$("source");sel.replaceChildren();if(!sources.length){const o=document.createElement("option");o.value="";o.textContent="No online sources";sel.append(o);sel.disabled=true;$("test").disabled=true;$("sources").textContent="No sharing source is online. The source phone must be connected using an authorized connector.";return}
+const p=document.createElement("option");p.value="";p.textContent="Choose a sharing device";sel.append(p);
+for(const s of sources){const o=document.createElement("option");o.value=s.id;o.textContent=s.name;sel.append(o)}
+sel.disabled=false;$("test").disabled=false;$("sources").replaceChildren();for(const s of sources){const d=document.createElement("div");d.className="source";d.textContent=s.name+" · Online now";$("sources").append(d)}}
+function connect(){close();sources=[];render();status("Connecting securely to source directory…");try{socket=new WebSocket(wsUrl)}catch(e){status("Could not start connection.");return}
+const ws=socket;ws.addEventListener("open",()=>{if(socket===ws)ws.send(JSON.stringify({type:"register",role:"client"}))});
+ws.addEventListener("message",e=>{if(socket!==ws)return;let m;try{m=JSON.parse(e.data)}catch(_){return}
+if(m.type==="source-list"&&Array.isArray(m.sources)){sources=m.sources.filter(s=>s&&s.connected&&typeof s.id==="string"&&/^[a-zA-Z0-9_-]{1,80}$/.test(s.id));render();status(sources.length?"Found "+sources.length+" online source(s).":"No source devices are online right now.")}
+if(m.type==="ping-result"&&pending){if(timer)clearTimeout(timer);timer=null;pending=null;status(m.success?"Source responded. The control connection works; this does not verify web browsing.":"Source test failed: "+(m.error||"No response."))}
+if(m.type==="error")status("Connection error: "+String(m.error||"request rejected").slice(0,160))});
+ws.addEventListener("close",()=>{if(socket===ws&&!pending)status("Disconnected. Tap Find online sources to retry.")});ws.addEventListener("error",()=>{if(socket===ws)status("Could not connect. Check your internet and retry.")})}
+$("refresh").addEventListener("click",connect);
+$("test").addEventListener("click",()=>{if(!socket||socket.readyState!==WebSocket.OPEN){status("Connect to source directory first.");return}const id=$("source").value;if(!id){status("Choose a source first.");return}if(pending)return;pending=id;status("Testing source…");socket.send(JSON.stringify({type:"ping-source",sourceId:id}));timer=setTimeout(()=>{if(pending===id){pending=null;status("Timed out waiting for source.")}},7000)});
+window.addEventListener("pagehide",close);connect();
+</script></body></html>

@@ -1,9 +1,12 @@
 plugins { id "com.android.application" }
 
+def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "").toString().trim().replaceAll("/+$", "")
+
 dependencies {
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
 android {
+    buildFeatures { buildConfig true }
     namespace "com.dreameducation.wifi"
     compileSdk 35
     defaultConfig {
@@ -12,6 +15,7 @@ android {
         targetSdk 35
         versionCode 1
         versionName "0.1.0"
+        buildConfigField "String", "DREAM_WIFI_BASE_URL", "\"${dreamWifiBaseUrl}\""
         ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
         externalNativeBuild { ndkBuild { arguments "APP_PLATFORM=android-26" } }
     }

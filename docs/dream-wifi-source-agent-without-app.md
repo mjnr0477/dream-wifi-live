@@ -18,7 +18,7 @@ For an ordinary Wi-Fi connection that already has working internet, an authorize
 pkg update
 pkg install nodejs-lts curl
 mkdir -p ~/dream-wifi && cd ~/dream-wifi
-curl -fsSL https://raw.githubusercontent.com/mjnr0477/dream-education-live/main/scripts/dream-wifi-source-agent.js -o dream-wifi-source-agent.js
+curl -fsSL https://raw.githubusercontent.com/mjnr0477/dream-wifi-live/main/scripts/dream-wifi-source-agent.js -o dream-wifi-source-agent.js
 read -rsp "Paste temporary source ticket: " DREAM_WIFI_SOURCE_TOKEN
 echo
 export DREAM_WIFI_SOURCE_TOKEN

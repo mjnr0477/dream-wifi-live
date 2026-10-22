@@ -3,7 +3,13 @@
 const originalFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (input, init) => {
   const url = typeof input === "string" ? input : input && input.url;
-  if (typeof url === "string" && url.startsWith("https://overpass-api.de/api/interpreter")) {
+  const isOverpassEndpoint = typeof url === "string" && [
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
+  ].some(endpoint => url.startsWith(endpoint));
+  if (isOverpassEndpoint) {
     return new Response(JSON.stringify({
       elements: [{
         type: "node",

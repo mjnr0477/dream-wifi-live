@@ -50,7 +50,7 @@ document.getElementById("share-link").addEventListener("click", async () => {
 document.getElementById("check-status").addEventListener("click", async () => {
   status.textContent = "Checking the source directory…";
   try {
-    const response = await fetch("/api/wifi/sources?latitude=0.63063&longitude=34.45254&radius_km=300");
+    const response = await fetch("/api/wifi/source-status");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Status request failed.");
     const online = (data.sources || []).filter(source => source.connected);

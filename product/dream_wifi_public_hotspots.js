@@ -3,8 +3,8 @@
 // Public hotspot directory backed by OpenStreetMap data. This discovers mapped
 // public Wi-Fi venues; it cannot detect every SSID or private router remotely.
 const OVERPASS_ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter"
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 ];
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_RESULTS = 200;
@@ -73,7 +73,11 @@ async function fetchPublicHotspots({ latitude, longitude, radiusKm, fetchImpl = 
     try {
       const response = await fetchImpl(endpoint, {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8", "accept": "application/json" },
+        headers: {
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "accept": "application/json",
+          "user-agent": "Dream-WiFi/1.0 (+https://github.com/mjnr0477/dream-wifi-live)"
+        },
         body: new URLSearchParams({ data: query }),
         signal: AbortSignal.timeout(22000)
       });

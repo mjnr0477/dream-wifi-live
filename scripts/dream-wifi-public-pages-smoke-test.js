@@ -28,12 +28,12 @@ assert.match(terms, /not implemented or verified/i);
 assert.match(terms, /ICMP/i);
 assert.match(support, /GitHub issues are public/i);
 assert.match(support, /pairing codes/i);
-assert.match(privacy, /href="\\/terms\\.html"/);
-assert.match(privacy, /href="\\/support\\.html"/);
-assert.match(terms, /href="\\/privacy\\.html"/);
-assert.match(terms, /href="\\/support\\.html"/);
-assert.match(support, /href="\\/privacy\\.html"/);
-assert.match(support, /href="\\/terms\\.html"/);
+assert.match(privacy, /href="\/terms\.html"/);
+assert.match(privacy, /href="\/support\.html"/);
+assert.match(terms, /href="\/privacy\.html"/);
+assert.match(terms, /href="\/support\.html"/);
+assert.match(support, /href="\/privacy\.html"/);
+assert.match(support, /href="\/terms\.html"/);
 for (const [name, html] of [["index", index], ["share", share], ["receive", receive]]) {
   assert.match(html, /href="\/privacy\.html"/, name + " page must expose privacy link");
   assert.match(html, /href="\/terms\.html"/, name + " page must expose terms link");

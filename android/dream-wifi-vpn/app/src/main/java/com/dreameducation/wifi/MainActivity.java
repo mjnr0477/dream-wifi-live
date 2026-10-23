@@ -589,7 +589,10 @@ public final class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == VPN_PERMISSION_REQUEST) {
             if (resultCode == RESULT_OK) startVpnService();
-            else status.setText("VPN permission was not granted.");
+            else {
+                connectButton.setEnabled(true);
+                status.setText("VPN permission was not granted.");
+            }
         }
     }
 

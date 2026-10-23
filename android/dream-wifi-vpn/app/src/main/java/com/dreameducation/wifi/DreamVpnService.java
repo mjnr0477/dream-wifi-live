@@ -37,6 +37,8 @@ public final class DreamVpnService extends VpnService {
     public static final String EXTRA_PAIRING_CODE = "dream_wifi_pairing_code";
     public static final String EXTRA_SOURCE_TOKEN = "dream_wifi_source_token";
     public static final String EXTRA_SOURCE_ID = "dream_wifi_source_id";
+    public static final String EXTRA_SOURCE_LATITUDE = "dream_wifi_source_latitude";
+    public static final String EXTRA_SOURCE_LONGITUDE = "dream_wifi_source_longitude";
     public static final String EXTRA_SOURCE_ONLY = "dream_wifi_source_only";
     private static final int ID = 7201;
     private static final String CHANNEL = "dream_wifi_vpn";
@@ -84,6 +86,8 @@ public final class DreamVpnService extends VpnService {
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
         String sourceToken = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_TOKEN);
         String enrolledSourceId = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_ID);
+        double sourceLatitude = intent == null ? Double.NaN : intent.getDoubleExtra(EXTRA_SOURCE_LATITUDE, Double.NaN);
+        double sourceLongitude = intent == null ? Double.NaN : intent.getDoubleExtra(EXTRA_SOURCE_LONGITUDE, Double.NaN);
         if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
                 : pairingCode == null || pairingCode.trim().isEmpty()) {
             updateNotification(sourceOnly
@@ -100,7 +104,7 @@ public final class DreamVpnService extends VpnService {
         }
         String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
         Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
-        relay = new DreamWifiRelay(pairingCode, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, new DreamWifiRelay.Listener() {
+        relay = new DreamWifiRelay(pairingCode, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
                 if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("captive portal redirect detected")) {
                     captivePortalMode = true;

@@ -16,10 +16,10 @@ dependencies {
 
 android {
     buildFeatures { buildConfig true }
-    namespace "com.dreameducation.wifi"
+    namespace "com.dreamwifi.android"
     compileSdk 35
     defaultConfig {
-        applicationId "com.dreameducation.wifi"
+        applicationId "com.dreamwifi.android"
         minSdk 26
         targetSdk 35
         versionCode 1

@@ -88,7 +88,7 @@ public final class DreamVpnService extends VpnService {
         startForeground(ID, notification("Connecting to Dream Tunnel…"));
         if (relay != null) {
             updateNotification("Dream Wi-Fi is already connecting or running.");
-            return START_NOT_STICKY;
+            return START_STICKY;
         }
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);

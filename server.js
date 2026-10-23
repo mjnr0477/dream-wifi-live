@@ -42,7 +42,7 @@ app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: true, database: false, authentication: "one-time-source-pairing" }));
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: true, database: false, authentication: "one-time-source-pairing" }));
 app.post("/api/dream-wifi/source-enroll", (req, res) => {
   const now = Date.now();
   const key = String(req.ip || req.socket.remoteAddress || "unknown");

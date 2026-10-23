@@ -12,7 +12,7 @@ Scope: inspection of the default-branch source files available through GitHub. T
 - Browser discovery, source setup, and receiver pages in `public/`.
 - The README explicitly describes the current tunnel as a bounded HTTP/HTTPS relay, not a full-device VPN.
 - The package test script runs JavaScript syntax checks and several server-side smoke/integration tests.
-- No native Android project, Android manifest, `VpnService`, or hotspot-forwarding implementation was found in the inspected repository files/search results.
+- A native Android VPN prototype exists under `android/dream-wifi-vpn`, including `VpnService`, a native TUN-to-SOCKS engine integration, and a relay class. Its current sign-in/source-ticket flow depends on Dream Education endpoints that the standalone `server.js` does not implement. Hotspot-forwarding support was not found in the inspected Android sources.
 
 ## Release-blocking findings
 
@@ -26,9 +26,9 @@ The same engine uses a shared `DREAM_WIFI_SOURCE_TOKEN` for source registration.
 
 The source page states that a self-service pairing flow is not yet available. No complete short-lived, scoped, revocable source/receiver pairing flow was identified in the inspected paths. The source agent still depends on the server-side shared source token.
 
-### 3. No native Android receiver/source implementation is present in the inspected repository
+### 3. Existing Android VPN prototype is not integrated with the standalone backend
 
-The web receiver page expressly says it cannot route all phone traffic. The inspected repository did not reveal Android app sources, a VPN service, VPN permission handling, foreground service implementation, or hotspot forwarding. These requirements cannot be satisfied by changing browser JavaScript alone.
+The repository contains a native Android prototype with VPN permission handling and a foreground service. However, its `MainActivity` and `DreamWifiRelay` expect Dream Education login/refresh and source-ticket endpoints that the standalone backend does not implement. The native prototype therefore cannot complete its current authentication flow against Dream Wi-Fi Live. Downstream hotspot forwarding was not found and remains a separate blocker.
 
 ### 4. The current receiver probe is narrower than the release requirement
 
@@ -47,7 +47,7 @@ This inspection did not execute `npm test`, inspect live Render logs, confirm th
 1. Add an explicit threat model and implement authenticated source enrollment plus short-lived pairing credentials, expiry, revocation, and per-source authorization. Keep the shared server token server-side only; do not expose it to browser code.
 2. Add regression tests proving anonymous clients cannot enumerate or use private participating sources, and that invalid, expired, revoked, and cross-source credentials are rejected.
 3. Harden relay stream lifecycle, validation, timeouts, cleanup, backpressure, and honest connection-health reporting; add real integration tests for partial data and failures.
-4. Implement or add a separate native Android application module with user-approved `VpnService`, secure credential storage, supported foreground-service behavior, and receiver/source lifecycle management.
+4. Adapt the existing `android/dream-wifi-vpn` module to the standalone pairing/authentication flow, remove its Dream Education endpoint dependency, verify credential storage and foreground-service behavior, and test receiver/source lifecycle management.
 5. Design downstream tethered traffic forwarding for supported devices and document devices/Android versions where it is not possible.
 6. Run automated tests and a clean Android build; verify the deployed commit and routes; execute physical-device tests and record the device/OS/network details.
 7. Do not publish until every release-blocking acceptance test has documented evidence.
@@ -57,7 +57,7 @@ This inspection did not execute `npm test`, inspect live Render logs, confirm th
 - Repository source inspection: completed for the files listed above.
 - Automated test suite: not run during this inspection.
 - Live Render deployment / deployed SHA: not verified.
-- Android build: not available from the inspected source tree.
+- Android project: present under `android/dream-wifi-vpn`; build status not verified.
 - Physical two-phone relay test: not run.
 - Third-device hotspot forwarding test: not run.
 
@@ -77,18 +77,18 @@ The following incremental changes were added after the initial inspection:
 - The source connector now probes DNS plus TCP/443 reachability to a public test host every 60 seconds and reports this separately from WebSocket/relay presence; the tracker and receiver UI distinguish the two signals.
 - New clients use `/api/dream-wifi/tunnel`; the old path remains accepted temporarily for existing source connector compatibility.
 - Control-plane, protocol, and multi-source test cases were revised to cover pairing, anonymous rejection, one-time code use, source scoping, and revocation.
-- A GitHub Actions workflow was added for `npm test`.
+- Existing repository GitHub Actions verification and Android build workflows were identified; this branch did not add a duplicate workflow.
 
 ## Follow-up verification status
 
 - GitHub Actions runs were created but failed immediately before exposing any executable steps or usable logs through the available GitHub interface. This is not a passing test result and does not establish whether the code tests themselves pass.
 - Local test execution was not possible in this environment because the repository could not be cloned (network DNS access to GitHub was unavailable).
 - No live Render deployment was triggered or confirmed.
-- No native Android project, APK build, physical two-phone relay test, screen-off test, VPN traffic test, or third-device hotspot-forwarding test has been completed.
+- The native Android prototype exists, but no APK build, physical two-phone relay test, screen-off test, VPN traffic test, or third-device hotspot-forwarding test has been completed.
 
 ## Remaining security and product work
 
 - Source enrollment still uses the existing shared server-side source token. A public multi-user release needs per-source enrollment credentials and a reviewed ownership model, not just source-scoped receiver pairing.
 - Pairing records and session credentials are held in memory and are lost on service restart. Persistent, revocable session handling and restart recovery must be designed before production.
 - Browser HTTP probing remains a narrow relay test and does not demonstrate HTTPS end-to-end, DNS routing for phone apps, full-device VPN operation, or hotspot forwarding.
-- All Android, background, tracker radius, live deployment, and physical-device acceptance checks remain release blockers.
+- Standalone integration of the Android prototype, background operation, tracker radius, live deployment, and physical-device acceptance checks remain release blockers.

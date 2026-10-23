@@ -175,7 +175,6 @@ async function startServer() {
     } catch (error) {
       console.error("Dream Wi-Fi startup blocked: configured Supabase storage could not be verified:", String(error.message || "database_error").slice(0, 240));
       process.exitCode = 1;
-      server.close();
       return;
     }
   }

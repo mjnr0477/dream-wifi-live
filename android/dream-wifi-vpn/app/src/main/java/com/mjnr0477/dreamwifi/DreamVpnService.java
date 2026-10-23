@@ -42,6 +42,10 @@ public final class DreamVpnService extends VpnService {
     public static final String EXTRA_SOURCE_ONLY = "dream_wifi_source_only";
     private static final int ID = 7201;
     private static final String CHANNEL = "dream_wifi_vpn";
+    private static final String SERVICE_STATE_PREFS = "dream_wifi_service_state";
+    private static final String KEY_ACTIVE_MODE = "active_mode";
+    private static final String MODE_SOURCE = "source";
+    private static final String MODE_RECEIVER = "receiver";
 
     private volatile boolean running = false;
     private volatile boolean captivePortalMode = false;
@@ -55,7 +59,14 @@ public final class DreamVpnService extends VpnService {
     public native long[] TProxyGetStats();
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent == null ? ACTION_STOP : intent.getAction();
+        if (intent == null) {
+            intent = restoreStartIntent();
+            if (intent == null) {
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+        }
+        String action = intent.getAction();
         if (ACTION_SELECT_SOURCE.equals(action)) {
             String selected = intent == null ? "" : intent.getStringExtra(EXTRA_SELECTED_SOURCE_ID);
             DreamWifiRelay current = relay;
@@ -66,6 +77,7 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
+            clearActiveMode();
             stopTunnel();
             stopForeground(true);
             stopSelf();
@@ -80,7 +92,7 @@ public final class DreamVpnService extends VpnService {
         startForeground(ID, notification("Connecting to Dream Tunnel…"));
         if (relay != null) {
             updateNotification("Dream Wi-Fi is already connecting or running.");
-            return START_NOT_STICKY;
+            return START_STICKY;
         }
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
@@ -92,6 +104,7 @@ public final class DreamVpnService extends VpnService {
         if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
                 : (pairingCode == null || pairingCode.trim().isEmpty())
                         && (receiverAccessToken == null || receiverAccessToken.trim().isEmpty())) {
+            clearActiveMode();
             updateNotification(sourceOnly
                     ? "Source enrollment failed. Publish this phone again to obtain a source credential."
                     : "Enter a valid one-time source pairing code in Dream Wi-Fi.");
@@ -100,10 +113,13 @@ public final class DreamVpnService extends VpnService {
         }
         Network sourceNetwork = sourceOnly ? findConnectedWifiNetwork() : null;
         if (sourceOnly && sourceNetwork == null) {
+            clearActiveMode();
             updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
             stopSelf();
             return START_NOT_STICKY;
         }
+        getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_ACTIVE_MODE, sourceOnly ? MODE_SOURCE : MODE_RECEIVER).commit();
         String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
         Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
         relay = new DreamWifiRelay(pairingCode, receiverAccessToken, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
@@ -118,9 +134,11 @@ public final class DreamVpnService extends VpnService {
                     if (sourceOnly && normalized.contains("source channel rejected")
                             && (normalized.contains("not authorized") || normalized.contains("not configured") || normalized.contains("expired"))) {
                         DreamWifiCredentialStore.clearSource(DreamVpnService.this);
+                        clearActiveMode();
                     }
                     if (!sourceOnly && normalized.contains("receiver pairing expired or was revoked")) {
                         DreamWifiCredentialStore.clearReceiver(DreamVpnService.this);
+                        clearActiveMode();
                     }
                 }
                 updateNotification(message);
@@ -151,7 +169,39 @@ public final class DreamVpnService extends VpnService {
         });
         relay.setSelectedSourceId(intent == null ? "" : intent.getStringExtra(EXTRA_SELECTED_SOURCE_ID));
         relay.start();
-        return START_NOT_STICKY;
+        return START_STICKY;
+    }
+
+    private Intent restoreStartIntent() {
+        String mode = getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).getString(KEY_ACTIVE_MODE, "");
+        Intent restored = new Intent(this, DreamVpnService.class);
+        restored.setAction(ACTION_START);
+        if (MODE_SOURCE.equals(mode)) {
+            DreamWifiCredentialStore.SourceCredentials credentials = DreamWifiCredentialStore.loadSource(this);
+            if (credentials == null) {
+                clearActiveMode();
+                return null;
+            }
+            restored.putExtra(EXTRA_SOURCE_ONLY, true);
+            restored.putExtra(EXTRA_SOURCE_ID, credentials.sourceId);
+            restored.putExtra(EXTRA_SOURCE_TOKEN, credentials.sourceToken);
+            return restored;
+        }
+        if (MODE_RECEIVER.equals(mode)) {
+            DreamWifiCredentialStore.ReceiverCredentials credentials = DreamWifiCredentialStore.loadReceiver(this);
+            if (credentials == null) {
+                clearActiveMode();
+                return null;
+            }
+            restored.putExtra(EXTRA_ACCESS_TOKEN, credentials.accessToken);
+            restored.putExtra(EXTRA_SELECTED_SOURCE_ID, credentials.sourceId);
+            return restored;
+        }
+        return null;
+    }
+
+    private void clearActiveMode() {
+        getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit().remove(KEY_ACTIVE_MODE).commit();
     }
 
     private Network findConnectedWifiNetwork() {
@@ -312,6 +362,7 @@ public final class DreamVpnService extends VpnService {
     }
 
     @Override public void onRevoke() {
+        clearActiveMode();
         stopTunnel();
         stopForeground(true);
         stopSelf();

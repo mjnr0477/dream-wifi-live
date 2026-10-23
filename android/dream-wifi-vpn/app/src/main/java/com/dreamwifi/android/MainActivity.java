@@ -35,7 +35,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final int VPN_PERMISSION_REQUEST = 1001;
     private static final int SOURCE_LOCATION_REQUEST = 1002;
-    static final String ACTION_STATUS = "com.dreameducation.wifi.STATUS";
+    static final String ACTION_STATUS = "com.dreamwifi.android.STATUS";
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText pairingCodeInput;
     private Button connectButton;

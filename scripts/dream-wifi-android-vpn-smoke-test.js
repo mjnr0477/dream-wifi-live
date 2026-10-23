@@ -20,6 +20,8 @@ const releaseWorkflow = read(".github/workflows/dream-wifi-android-release.yml")
 const readme = read("android/dream-wifi-vpn/README.md");
 const server = read("server.js");
 const tunnel = read("product/dream_wifi_tunnel_engine.js");
+const sourceAgent = read("scripts/dream-wifi-source-agent.js");
+const proxyClient = read("scripts/dream-wifi-proxy-client.js");
 
 assert.ok(fs.existsSync(sourceRoot), "Native Android source package must exist.");
 assert.match(androidBuild, /namespace "com\.mjnr0477\.dreamwifi"/);
@@ -56,7 +58,16 @@ assert.match(nativeRelay, /putSafe\("role", "client"\)/);
 assert.match(nativeRelay, /putSafe\("role", "source"\)/);
 assert.match(nativeRelay, /tcp-open/);
 assert.match(nativeRelay, /udp-send/);
-assert.match(nativeRelay, /port != 53/);
+assert.match(nativeRelay, /port < 1 \|\| port > 65535/);
+assert.doesNotMatch(nativeRelay, /port != 80 && port != 443/);
+assert.doesNotMatch(nativeRelay, /port != 53/);
+assert.doesNotMatch(nativeRelay, /Only DNS UDP on port 53 is supported/);
+assert.match(tunnel, /port > 65535/);
+assert.doesNotMatch(tunnel, /!\[80, 443\]\.includes\(port\)/);
+assert.match(sourceAgent, /port > 65535/);
+assert.doesNotMatch(sourceAgent, /!\[80, 443\]\.includes\(port\)/);
+assert.match(proxyClient, /targetPort > 65535/);
+assert.doesNotMatch(proxyClient, /!\[80, 443\]\.includes\(targetPort\)/);
 assert.match(nativeRelay, /startInternetProbe/);
 assert.match(nativeRelay, /lowerReason\.contains\("revoked"\)/);
 assert.match(nativeRelay, /Captive portal redirect detected/);

@@ -112,27 +112,82 @@ async function main() {
       type: "tcp-open",
       id: "integration-stream",
       host: "example.com",
-      port: 80,
+      port: 8443,
       sourceId: "integration-source"
     }));
     const openRequest = await source.next(m => m.type === "tcp-open" && m.id === "integration-stream", "forwarded TCP open");
     assert.equal(openRequest.host, "example.com");
-    assert.equal(openRequest.port, 80);
+    assert.equal(openRequest.port, 8443, "Non-standard valid TCP ports must be relayable.");
 
     source.socket.send(JSON.stringify({ type: "tcp-opened", id: openRequest.id }));
     await owner.next(m => m.type === "tcp-opened" && m.id === openRequest.id, "TCP opened acknowledgement");
 
     const payload = ["HTTP/1.1 200 OK", "Content-Length: 2", "", "OK"].join("\r\n");
+    const splitAt = Math.floor(payload.length / 2);
     source.socket.send(JSON.stringify({
       type: "tcp-data",
       id: openRequest.id,
-      data: Buffer.from(payload).toString("base64")
+      data: Buffer.from(payload.slice(0, splitAt)).toString("base64")
     }));
-    const response = await owner.next(m => m.type === "tcp-data" && m.id === openRequest.id, "forwarded TCP data");
-    assert.equal(Buffer.from(response.data, "base64").toString("utf8"), payload);
+    source.socket.send(JSON.stringify({
+      type: "tcp-data",
+      id: openRequest.id,
+      data: Buffer.from(payload.slice(splitAt)).toString("base64")
+    }));
+    const responsePart1 = await owner.next(m => m.type === "tcp-data" && m.id === openRequest.id, "first split TCP response chunk");
+    const responsePart2 = await owner.next(m => m.type === "tcp-data" && m.id === openRequest.id, "second split TCP response chunk");
+    const reconstructed = Buffer.concat([
+      Buffer.from(responsePart1.data, "base64"),
+      Buffer.from(responsePart2.data, "base64")
+    ]).toString("utf8");
+    assert.equal(reconstructed, payload, "TCP payload bytes must survive partial/split responses.");
 
     owner.socket.send(JSON.stringify({ type: "tcp-close", id: openRequest.id }));
     await source.next(m => m.type === "tcp-close" && m.id === openRequest.id, "forwarded TCP close");
+
+    const udpRequestPayload = Buffer.from("ntp-request");
+    owner.socket.send(JSON.stringify({
+      type: "udp-send",
+      id: "integration-udp",
+      host: "time.example.com",
+      port: 123,
+      data: udpRequestPayload.toString("base64")
+    }));
+    const udpRequest = await source.next(m => m.type === "udp-send" && m.id === "integration-udp", "forwarded UDP datagram");
+    assert.equal(udpRequest.port, 123, "Valid non-DNS UDP ports must be relayable.");
+    assert.equal(Buffer.from(udpRequest.data, "base64").toString("utf8"), "ntp-request");
+    source.socket.send(JSON.stringify({
+      type: "udp-data",
+      id: "integration-udp",
+      host: "time.example.com",
+      port: 123,
+      data: Buffer.from("ntp-response").toString("base64")
+    }));
+    const udpResponse = await owner.next(m => m.type === "udp-data" && m.id === "integration-udp", "returned UDP datagram");
+    assert.equal(udpResponse.port, 123);
+    assert.equal(Buffer.from(udpResponse.data, "base64").toString("utf8"), "ntp-response");
+    owner.socket.send(JSON.stringify({ type: "udp-close", id: "integration-udp" }));
+    await source.next(m => m.type === "udp-close" && m.id === "integration-udp", "forwarded UDP close");
+
+    owner.socket.send(JSON.stringify({
+      type: "tcp-open",
+      id: "invalid-tcp-port",
+      host: "example.com",
+      port: 65536,
+      sourceId: "integration-source"
+    }));
+    const invalidTcp = await owner.next(m => m.type === "tcp-error" && m.id === "invalid-tcp-port", "invalid TCP port rejection");
+    assert.match(invalidTcp.error, /valid public TCP destinations/i);
+
+    owner.socket.send(JSON.stringify({
+      type: "udp-send",
+      id: "invalid-udp-port",
+      host: "time.example.com",
+      port: 65536,
+      data: Buffer.from("invalid").toString("base64")
+    }));
+    const invalidUdp = await owner.next(m => m.type === "udp-error" && m.id === "invalid-udp-port", "invalid UDP port rejection");
+    assert.match(invalidUdp.error, /invalid|destination/i);
 
     const publicClient = connect(url);
     try {

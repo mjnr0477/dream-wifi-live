@@ -564,7 +564,7 @@ final class DreamWifiRelay {
                 }
                 return;
             }
-            if (command != 1 || port != 80 && port != 443 || host.isEmpty()) { socksReply(output, 2); return; }
+            if (command != 1 || port < 1 || port > 65535 || host.isEmpty()) { socksReply(output, 2); return; }
             if (!ownerReady || ownerSocket == null) { socksReply(output, 1); return; }
             if (ownerStreams.size() >= MAX_STREAMS) { socksReply(output, 1); return; }
 
@@ -621,7 +621,7 @@ final class DreamWifiRelay {
                 association.socket.receive(packet);
                 if (!packet.getAddress().isLoopbackAddress()) continue;
                 ParsedUdp parsed = parseUdp(packet.getData(), packet.getLength());
-                if (parsed == null || parsed.port != 53 || !ownerReady) continue;
+                if (parsed == null || parsed.port < 1 || parsed.port > 65535 || !ownerReady) continue;
                 association.endpoint = new InetSocketAddress(packet.getAddress(), packet.getPort());
                 sendOwner(new SafeJson().putSafe("type", "udp-send").putSafe("id", association.id)
                         .putSafe("host", parsed.host).putSafe("port", parsed.port)
@@ -675,7 +675,7 @@ final class DreamWifiRelay {
         int port = message.optInt("port", 0);
         Socket socket = null;
         try {
-            if (id.isEmpty() || host.isEmpty() || host.length() > 253 || (port != 80 && port != 443)) {
+            if (id.isEmpty() || host.isEmpty() || host.length() > 253 || port < 1 || port > 65535) {
                 sendSourceError(id, "Invalid or unsupported destination."); return;
             }
             if (sourceStreams.size() >= MAX_STREAMS) { sendSourceError(id, "Source stream limit reached."); return; }
@@ -715,7 +715,7 @@ final class DreamWifiRelay {
         String host = message.optString("host", "").trim();
         int port = message.optInt("port", 0);
         try {
-            if (port != 53 || host.isEmpty()) throw new IOException("Only DNS UDP on port 53 is supported.");
+            if (port < 1 || port > 65535 || host.isEmpty()) throw new IOException("Invalid UDP destination.");
             InetAddress target = resolvePublicAddress(host);
             byte[] data = Base64.decode(message.optString("data", ""), Base64.DEFAULT);
             if (data.length == 0 || data.length > MAX_UDP_BYTES) throw new IOException("DNS datagram size is not supported.");

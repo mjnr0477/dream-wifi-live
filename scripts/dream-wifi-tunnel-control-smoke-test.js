@@ -129,9 +129,16 @@ async function main() {
     owner.send(JSON.stringify({ type: "udp-close", id: "test-udp-1" }));
     await udpClosed;
 
-    const rejectedPort = waitMessage(owner, m => m.type === "tcp-error" && m.id === "blocked-port");
-    owner.send(JSON.stringify({ type: "tcp-open", id: "blocked-port", host: "example.com", port: 22 }));
-    assert.match((await rejectedPort).error, /HTTP.HTTPS/);
+    const alternatePortOpened = waitMessage(owner, m => m.type === "tcp-opened" && m.id === "alternate-port");
+    const alternatePortRequest = waitMessage(source, m => m.type === "tcp-open" && m.id === "alternate-port");
+    owner.send(JSON.stringify({ type: "tcp-open", id: "alternate-port", host: "example.com", port: 22 }));
+    assert.equal((await alternatePortRequest).port, 22, "Valid non-HTTP TCP ports should be forwarded.");
+    source.send(JSON.stringify({ type: "tcp-opened", id: "alternate-port" }));
+    assert.equal((await alternatePortOpened).id, "alternate-port");
+    const alternatePortClosed = waitMessage(source, m => m.type === "tcp-close" && m.id === "alternate-port");
+    owner.send(JSON.stringify({ type: "tcp-close", id: "alternate-port" }));
+    await alternatePortClosed;
+
     const sourceClosed = waitMessage(source, m => m.type === "tcp-close" && m.id === "test-stream-1");
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;

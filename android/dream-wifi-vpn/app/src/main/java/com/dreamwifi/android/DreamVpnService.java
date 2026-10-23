@@ -25,11 +25,11 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 public final class DreamVpnService extends VpnService {
-    public static final String ACTION_START = "com.dreameducation.wifi.START";
-    public static final String ACTION_STOP = "com.dreameducation.wifi.STOP";
-    public static final String ACTION_SELECT_SOURCE = "com.dreameducation.wifi.SELECT_SOURCE";
-    public static final String ACTION_REVOKE_PAIRINGS = "com.dreameducation.wifi.REVOKE_PAIRINGS";
-    static final String ACTION_SOURCES = "com.dreameducation.wifi.SOURCES";
+    public static final String ACTION_START = "com.dreamwifi.android.START";
+    public static final String ACTION_STOP = "com.dreamwifi.android.STOP";
+    public static final String ACTION_SELECT_SOURCE = "com.dreamwifi.android.SELECT_SOURCE";
+    public static final String ACTION_REVOKE_PAIRINGS = "com.dreamwifi.android.REVOKE_PAIRINGS";
+    static final String ACTION_SOURCES = "com.dreamwifi.android.SOURCES";
     public static final String EXTRA_SELECTED_SOURCE_ID = "dream_wifi_selected_source_id";
     public static final String EXTRA_ACCESS_TOKEN = "dream_wifi_access_token";
     public static final String EXTRA_REFRESH_TOKEN = "dream_wifi_refresh_token";

@@ -1,6 +1,6 @@
 # Dream Wi-Fi
 
-Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education and Supabase.
+Standalone Dream Wi-Fi / Dream Tunnel service, separate from Dream Education. Production source credential and source-directory persistence can use a server-only Supabase database.
 
 **Public release status: BLOCKED.** The backend CI tests and Android debug APK build have passed, but durable production storage, a production-aligned deployment, and physical-device end-to-end acceptance remain incomplete. See [Public Release Gate](docs/PUBLIC-RELEASE-GATE.md) for the mandatory evidence checklist. Do not publish the debug APK or advertise unrestricted internet/hotspot support as production-ready.
 
@@ -12,7 +12,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 - Core source enrollment and receiver pairing do not require Dream Education sign-in, Supabase accounts, or Supabase keys.
 - `POST /api/dream-wifi/source-enroll` creates a unique source ID/token, rate-limited per IP. Receiver pairing uses a one-time source code (10-minute expiry) and returns a source-scoped receiver session (24-hour expiry).
 - A source can relay traffic only while online and explicitly configured to share its network. The server tunnel currently supports bounded TCP ports 80/443 and DNS UDP port 53; it is not proof of unrestricted application traffic.
-- Source enrollment stores only SHA-256 token hashes in `source-credentials.json` under `DREAM_WIFI_DATA_DIR`. Restart recovery requires that directory to be writable and mounted on durable storage. Pairing codes and receiver sessions remain in memory, so receivers must pair again after backend restarts.
+- When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured on the server, source credential hashes and source-directory records are stored in Supabase. The service verifies both tables before listening and only enables source enrollment after the database check succeeds. The service-role key must never be included in browser/mobile code or pasted into chat. If Supabase is not configured, the local-file fallback requires `DREAM_WIFI_DATA_DIR` on a durable writable disk and the operator's explicit `DREAM_WIFI_STORAGE_READY=true` attestation. Pairing codes and receiver sessions remain in memory, so receivers must pair again after backend restarts.
 - The legacy Node source agent still supports `DREAM_WIFI_SOURCE_TOKEN` configured only on the server/authorized source agent. Never put that shared secret in browser or APK code.
 
 ## Sharing and receiving roles
@@ -25,7 +25,10 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 ## Environment
 Server:
 - `DREAM_WIFI_SOURCE_TOKEN`: legacy long random secret used only by authorized Node source agents. Never put it in browser or APK code.
-- `DREAM_WIFI_DATA_DIR`: writable directory for `sources.json` and hashed `source-credentials.json`. Point this to a persistent disk mount to retain source reports and source credential recovery across host restarts/deploys. The current Render blueprint is free-tier and does not attach a persistent disk, so this requirement is not met by that deployment configuration yet.
+- `SUPABASE_URL`: URL for the approved Dream Wi-Fi Supabase project.
+- `SUPABASE_SERVICE_ROLE_KEY`: legacy server-only service-role API key for that project. Never use a publishable/anon key here, never expose this value to clients, and never paste it into chat.
+- `DREAM_WIFI_DATA_DIR`: local fallback directory for `sources.json` and hashed `source-credentials.json`; use only on a durable writable disk.
+- `DREAM_WIFI_STORAGE_READY=true`: explicit operator attestation for the local-file fallback only; it does not replace Supabase configuration on ephemeral hosts.
 - `PORT`: provided by the host.
 
 Authorized source device:

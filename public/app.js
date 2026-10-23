@@ -94,7 +94,7 @@
   }
   function renderSources(data) {
     $("sources").replaceChildren();
-    $("source-summary").textContent = data.count + " participating sources within " + data.radius_km + " km · " + data.online_count + " online";
+    $("source-summary").textContent = data.count + " participating sources within " + data.radius_km + " km · " + data.online_count + " relay connected";
     if (!data.sources.length) {
       const p = document.createElement("p"); p.className = "muted";
       p.textContent = "No participating Dream Wi-Fi source devices with known coordinates were found. This does not mean there are no Wi-Fi hotspots nearby.";

@@ -39,6 +39,12 @@ async function main() {
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
   let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner, restartedServer, restartedWss, failingServer, failingWss;
   try {
+    const crossOrigin = new WebSocket(url, { headers: { Origin: "https://evil.example" } });
+    await waitOpen(crossOrigin);
+    const crossOriginRejected = waitMessage(crossOrigin, m => m.type === "error");
+    assert.match((await crossOriginRejected).error, /origin is not allowed/i);
+    crossOrigin.close();
+
     source = new WebSocket(url);
     await waitOpen(source);
     const sourceRegistered = waitMessage(source, m => m.type === "registered");

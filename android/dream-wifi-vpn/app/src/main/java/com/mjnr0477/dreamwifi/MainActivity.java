@@ -89,6 +89,12 @@ public final class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         box.addView(title);
 
+        Button dashboardButton = new Button(this);
+        dashboardButton.setText("Open Dream Wi-Fi dashboard");
+        dashboardButton.setOnClickListener(v ->
+                startActivity(new Intent(this, DashboardActivity.class)));
+        box.addView(dashboardButton);
+
         TextView note = new TextView(this);
         note.setText("Standalone Dream Wi-Fi: enter the one-time pairing code supplied by the source owner to connect this phone through that source. Source publishing uses a separate enrollment step. Any provider captive portal or package/payment login must still be completed normally.");
         note.setTextSize(15);

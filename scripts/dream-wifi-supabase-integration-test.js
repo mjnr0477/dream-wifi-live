@@ -56,8 +56,8 @@ async function stopApp(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
   await new Promise(resolve => {
-    child.once("exit", resolve);
-    setTimeout(resolve, 2500);
+    const timer = setTimeout(resolve, 2500);
+    child.once("exit", () => { clearTimeout(timer); resolve(); });
   });
 }
 
@@ -149,7 +149,8 @@ async function main() {
       latitude: -1.29, longitude: 36.82
     }));
     assert.equal((await registered).sourceId, enrollment.source_id);
-    await fetch(base + "/api/wifi/sources?latitude=-1.29&longitude=36.82&radius_km=10");
+    const directoryResponse = await fetch(base + "/api/wifi/sources?latitude=-1.29&longitude=36.82&radius_km=10");
+    assert.equal(directoryResponse.status, 200);
     assert.ok(records.dream_wifi_sources.some(row => row.id === enrollment.source_id));
     console.log("Dream Wi-Fi Supabase app integration passed: startup readiness, hashed credential persistence, restart restoration, source authentication, and source-directory persistence.");
   } finally {

@@ -15,7 +15,7 @@ const configuredDataDir = String(process.env.DREAM_WIFI_DATA_DIR || "").trim();
 const dataDir = path.resolve(configuredDataDir || path.join(__dirname, "data"));
 // Explicit operator attestation is required before issuing credentials that must survive restarts.
 // The deployment must mount durable storage at DREAM_WIFI_DATA_DIR before setting this flag.
-let durableStorageReady = !supabaseStore.configured && process.env.DREAM_WIFI_STORAGE_READY === "true" && Boolean(configuredDataDir);
+let durableStorageReady = !supabaseStore.hasAnyConfig && process.env.DREAM_WIFI_STORAGE_READY === "true" && Boolean(configuredDataDir);
 const registryFile = path.join(dataDir, "sources.json");
 const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
@@ -163,6 +163,11 @@ app.use(express.static(publicDir));
 app.use((req, res, next) => { if (req.method === "GET" && !req.path.startsWith("/api/")) return res.sendFile(path.join(publicDir, "index.html")); next(); });
 app.use((_req, res) => res.status(404).json({ success: false, error: "Not found." }));
 async function startServer() {
+  if (supabaseStore.hasAnyConfig && !supabaseStore.configured) {
+    console.error("Dream Wi-Fi startup blocked: set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or remove both to use the explicitly configured durable-disk fallback.");
+    process.exitCode = 1;
+    return;
+  }
   if (supabaseStore.configured) {
     try {
       const stored = await supabaseStore.initialize();

@@ -166,6 +166,8 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
+            DreamWifiRelay currentRelay = relay;
+            if (currentRelay != null) currentRelay.disconnectReceiver();
             clearPublishedPairingCode();
             activeSourceMode = false;
             activeSourceNetwork = null;

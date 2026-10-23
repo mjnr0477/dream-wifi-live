@@ -67,16 +67,19 @@ async function main() {
     }));
     const sourceRegistered = await source.next(m => m.type === "registered" && m.role === "source", "source registration");
     assert.equal(sourceRegistered.sourceId, "integration-source");
+    const pairing = await source.next(m => m.type === "pairing-code", "one-time pairing code");
 
     owner = connect(url);
     await new Promise((resolve, reject) => {
       owner.socket.once("open", resolve);
       owner.socket.once("error", reject);
     });
-    owner.socket.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-session" }));
-    await owner.next(m => m.type === "registered" && m.role === "client", "public client registration");
+    owner.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
+    const ownerRegistration = await owner.next(m => m.type === "registered" && m.role === "client", "paired client registration");
+    assert.equal(ownerRegistration.sourceId, "integration-source");
+    assert.ok(ownerRegistration.accessToken.length >= 40);
     const sourceList = await owner.next(m => m.type === "source-list", "owner source list");
-    assert.ok(sourceList.sources.some(item => item.id === "integration-source"), "Authorized owner should see the registered static source.");
+    assert.deepEqual(sourceList.sources.map(item => item.id), ["integration-source"], "Paired receiver should only see its authorized source.");
 
     owner.socket.send(JSON.stringify({
       type: "tcp-open",
@@ -111,8 +114,8 @@ async function main() {
         publicClient.socket.once("error", reject);
       });
       publicClient.socket.send(JSON.stringify({ type: "register", role: "client" }));
-      const registered = await publicClient.next(m => m.type === "registered", "public client registration without credentials");
-      assert.equal(registered.role, "client");
+      const denied = await publicClient.next(m => m.type === "error", "anonymous client rejection");
+      assert.match(denied.error, /pairing code/i);
     } finally {
       try { publicClient.socket.close(); } catch (_) {}
     }

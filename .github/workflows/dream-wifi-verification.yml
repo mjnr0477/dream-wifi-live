@@ -1,7 +1,7 @@
 name: Dream Wi-Fi verification
 on:
   push:
-    branches: [main]
+    branches: [main, work/requirements-baseline-audit]
   pull_request:
     branches: [main]
 jobs:

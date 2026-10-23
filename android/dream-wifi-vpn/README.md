@@ -7,11 +7,11 @@ Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCK
 - The relay includes authenticated, size-limited UDP datagram forwarding for public destinations, used by SOCKS5 UDP ASSOCIATE and mapped DNS. TCP remains limited to ports 80 and 443. The owner dashboard includes HTTP and DNS/UDP source-path probes; these verify the relay path, not complete phone routing. UDP support has protocol smoke coverage but is not yet validated on a physical device; compatibility with arbitrary apps is not guaranteed.
 - This source has not yet been built, installed, or tested on a physical Android device. Do not distribute or advertise full-device coverage until device tests pass.
 - Run the source agent only on a network you are authorized to use. Software cannot create Wi-Fi signal or internet access without a real transport path.
-- The backend issues a short-lived source ticket to a verified owner at `POST /api/dream-wifi/source-ticket`; the app keeps owner and source credentials in memory and does not embed a permanent source secret.
+- The standalone backend issues source credentials through `POST /api/dream-wifi/source-enroll`; only SHA-256 hashes are persisted. Restart recovery requires `DREAM_WIFI_DATA_DIR` on durable writable storage. Receiver pairing codes and receiver sessions are in memory and receivers must pair again after a backend restart.
 - Native SOCKS relay supports TCP ports 80/443 and DNS UDP port 53 only. The Quant captive portal/package/payment flow must be completed by the user; this app does not bypass provider access controls.
 
 ## Test
-Verify sign-in, source-ticket issuance, VPN permission, Quant portal/package activation, HTTPS browsing, DNS, disconnect, reconnect after network changes, and traffic leakage on a physical Android device. TCP ports other than 80/443 and UDP ports other than DNS/53 remain blocked.
+Verify source enrollment, one-time pairing, VPN permission, Quant portal/package activation, real HTTPS browsing, DNS, disconnect/reconnect after network changes, screen-off behavior, and traffic leakage on physical Android devices. TCP ports other than 80/443 and UDP ports other than DNS/53 remain blocked.
 
 
 ## Configure the standalone service host

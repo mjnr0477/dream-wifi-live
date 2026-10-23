@@ -49,7 +49,6 @@ function attachDreamWifiTunnel(server, options = {}) {
 
   const wss = new WebSocketServer({
     server,
-    path: "/api/dream-education/dream-wifi/tunnel",
     maxPayload: MAX_MESSAGE_BYTES,
     perMessageDeflate: false
   });
@@ -157,7 +156,12 @@ function attachDreamWifiTunnel(server, options = {}) {
     }
   }
 
-  wss.on("connection", (socket) => {
+  wss.on("connection", (socket, request) => {
+    const requestPath = String(request && request.url || "").split("?")[0];
+    if (requestPath !== "/api/dream-wifi/tunnel" && requestPath !== "/api/dream-education/dream-wifi/tunnel") {
+      socket.close(1008, "Unknown Dream Wi-Fi WebSocket path");
+      return;
+    }
     const remoteIp = String(socket._socket && socket._socket.remoteAddress || "unknown");
     const activeForIp = connectionsPerIp.get(remoteIp) || 0;
     if (activeForIp >= MAX_CLIENTS_PER_IP) { socket.close(1013, "Connection limit reached"); return; }

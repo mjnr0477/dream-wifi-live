@@ -24,7 +24,10 @@ async function checkBlockedCase(name, options = {}) {
     ...process.env,
     PORT: String(port),
     DREAM_WIFI_BIND_HOST: "127.0.0.1",
-    DREAM_WIFI_SOURCE_TOKEN: "storage-gate-test-token"
+    DREAM_WIFI_SOURCE_TOKEN: "storage-gate-test-token",
+    // These cases test missing storage configuration, not production Supabase.
+    SUPABASE_URL: "",
+    SUPABASE_SERVICE_ROLE_KEY: ""
   };
   delete env.DREAM_WIFI_DATA_DIR;
   delete env.DREAM_WIFI_STORAGE_READY;

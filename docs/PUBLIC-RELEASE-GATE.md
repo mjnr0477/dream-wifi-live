@@ -27,7 +27,7 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 - [ ] Source enrollment succeeds and source credentials survive a server restart when durable storage is configured.
 - [ ] A receiver pairs with a fresh one-time code; invalid, expired, reused, and revoked codes/tokens are rejected.
 - [ ] Receiver loads real HTTPS websites and resolves DNS through the selected source, not merely through its own direct internet connection.
-- [ ] Test multiple apps, large transfers, simultaneous connections, IPv4/IPv6, timeouts, and interrupted connections. Current implementation restricts TCP to ports 80/443 and UDP to DNS/53, so broad app compatibility is not established.
+- [ ] Test multiple apps, large transfers, simultaneous connections, IPv4/IPv6, arbitrary TCP/UDP ports, timeouts, and interrupted connections. TCP/UDP destination-port restrictions have been removed, but ICMP and other non-TCP/UDP IP protocols are not forwarded; broad app compatibility remains unverified.
 - [ ] Confirm no receiver traffic leaks directly when the tunnel is disconnected, the source is unavailable, or the VPN service fails.
 - [ ] Test screen-off/Doze, app backgrounding, Wi-Fi/cellular changes, reboot, force-stop, reconnect, battery optimization, and Android foreground-service behavior.
 - [ ] Confirm tracker status distinguishes connected WebSocket, source-side internet probe, and successful end-to-end receiver traffic.

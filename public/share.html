@@ -56,8 +56,8 @@ document.getElementById("check-status").addEventListener("click", async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Status request failed.");
     status.textContent = data.online_count
-      ? data.online_count + " participating source device(s) currently appear online. This does not yet prove end-to-end browsing."
-      : "No participating source device is currently connected. This is only a directory check, not a connection test.";
+      ? data.online_count + " source relay connection(s) are online; " + Number(data.internet_ready_count || 0) + " passed the source-side DNS/TCP reachability probe. Receiver end-to-end browsing still needs its own test."
+      : "No participating source relay is currently connected. This is only a directory check, not a connection test.";
   } catch (error) { status.textContent = "Could not check source status: " + (error.message || "request failed"); }
 });
 </script>

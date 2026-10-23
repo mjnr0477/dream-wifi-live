@@ -2,6 +2,10 @@ package com.dreameducation.wifi;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -30,6 +34,7 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final int VPN_PERMISSION_REQUEST = 1001;
+    private static final int SOURCE_LOCATION_REQUEST = 1002;
     static final String ACTION_STATUS = "com.dreameducation.wifi.STATUS";
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText pairingCodeInput;
@@ -42,6 +47,8 @@ public final class MainActivity extends Activity {
     private String pendingPairingCode;
     private String pendingSourceToken;
     private String pendingSourceId;
+    private Double pendingSourceLatitude;
+    private Double pendingSourceLongitude;
     private boolean statusReceiverRegistered = false;
     private WifiManager wifiManager;
     private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
@@ -168,6 +175,18 @@ public final class MainActivity extends Activity {
             status.setText("Connect this phone to the Wi-Fi network you want to share, then retry.");
             return;
         }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, SOURCE_LOCATION_REQUEST);
+            status.setText("Location permission lets Dream Wi-Fi show this source in the radius tracker. You can still share without location.");
+            return;
+        }
+        Location location = getApproximateLocation();
+        pendingSourceLatitude = location == null ? null : location.getLatitude();
+        pendingSourceLongitude = location == null ? null : location.getLongitude();
+        performSourceEnrollment();
+    }
+
+    private void performSourceEnrollment() {
         connectButton.setEnabled(false);
         status.setText("Creating a unique standalone source credential…");
         authWorker.execute(() -> {
@@ -191,6 +210,22 @@ public final class MainActivity extends Activity {
                 });
             }
         });
+    }
+
+    private Location getApproximateLocation() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null;
+        LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (manager == null) return null;
+        Location best = null;
+        String[] providers = {LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, LocationManager.PASSIVE_PROVIDER};
+        for (String provider : providers) {
+            try {
+                Location candidate = manager.getLastKnownLocation(provider);
+                if (candidate != null && System.currentTimeMillis() - candidate.getTime() <= 30L * 60L * 1000L
+                        && (best == null || candidate.getTime() > best.getTime())) best = candidate;
+            } catch (Exception ignored) {}
+        }
+        return best;
     }
 
     private String selectedSourceLabel() {
@@ -251,6 +286,21 @@ public final class MainActivity extends Activity {
         return result;
     }
 
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == SOURCE_LOCATION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Location location = getApproximateLocation();
+                pendingSourceLatitude = location == null ? null : location.getLatitude();
+                pendingSourceLongitude = location == null ? null : location.getLongitude();
+            } else {
+                pendingSourceLatitude = null;
+                pendingSourceLongitude = null;
+            }
+            performSourceEnrollment();
+        }
+    }
+
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == VPN_PERMISSION_REQUEST) {
@@ -271,6 +321,10 @@ public final class MainActivity extends Activity {
         intent.setAction(DreamVpnService.ACTION_START);
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_TOKEN, pendingSourceToken);
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_ID, pendingSourceId);
+        if (pendingSourceLatitude != null && pendingSourceLongitude != null) {
+            intent.putExtra(DreamVpnService.EXTRA_SOURCE_LATITUDE, pendingSourceLatitude);
+            intent.putExtra(DreamVpnService.EXTRA_SOURCE_LONGITUDE, pendingSourceLongitude);
+        }
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_ONLY, true);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);

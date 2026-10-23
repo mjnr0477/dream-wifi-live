@@ -63,6 +63,9 @@ jobs:
           gradle --no-daemon -PDREAM_WIFI_BASE_URL="$DREAM_WIFI_BASE_URL" :app:assembleRelease :app:bundleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: dream-wifi-vpn-debug-apk
-          path: android/dream-wifi-vpn/app/build/outputs/apk/debug/app-debug.apk
+          name: dream-wifi-android-builds-testing-only
+          path: |
+            android/dream-wifi-vpn/app/build/outputs/apk/debug/app-debug.apk
+            android/dream-wifi-vpn/app/build/outputs/apk/release/app-release.apk
+            android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error

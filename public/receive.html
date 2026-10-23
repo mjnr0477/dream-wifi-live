@@ -16,7 +16,7 @@
 const $=id=>document.getElementById(id);
 let socket=null,sources=[],pending=null,timer=null,startedAt=0,received=0,probeId=null,probeState="idle",responseText="";
 const TOKEN_KEY="dreamWifiPairToken";
-const wsUrl=(location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/dream-education/dream-wifi/tunnel";
+const wsUrl=(location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/dream-wifi/tunnel";
 function status(s){$("status").textContent=s}
 function send(payload){if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify(payload));else throw new Error("Tunnel is disconnected.")}
 function finishProbe(message){if(timer)clearTimeout(timer);timer=null;pending=null;probeState="done";$("test").disabled=!sources.length;status(message)}

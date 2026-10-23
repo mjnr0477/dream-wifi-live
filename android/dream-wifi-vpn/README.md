@@ -1,6 +1,6 @@
 # Dream Wi-Fi Android VPN prototype
 
-Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCKS engine. The core VPN flow uses standalone one-time receiver pairing and per-source enrollment credentials; it does not require Dream Education sign-in. The app starts a loopback SOCKS5 relay on `127.0.0.1:1081`. The app package is excluded from VPN routing so its own source WebSocket and source-side sockets use the underlying network instead of looping back into the VPN.
+Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCKS engine. The standalone Android application ID is `com.mjnr0477.dreamwifi`; it uses its own package namespace. The core VPN flow uses standalone one-time receiver pairing and per-source enrollment credentials; it does not require Dream Education sign-in. The app starts a loopback SOCKS5 relay on `127.0.0.1:1081`. The app package is excluded from VPN routing so its own source WebSocket and source-side sockets use the underlying network instead of looping back into the VPN.
 
 ## Current implementation and limitations
 

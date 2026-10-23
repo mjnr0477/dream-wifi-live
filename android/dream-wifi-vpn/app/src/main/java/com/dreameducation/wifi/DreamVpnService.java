@@ -33,6 +33,9 @@ public final class DreamVpnService extends VpnService {
     public static final String EXTRA_ACCESS_TOKEN = "dream_wifi_access_token";
     public static final String EXTRA_REFRESH_TOKEN = "dream_wifi_refresh_token";
     public static final String EXTRA_SOURCE_TICKET = "dream_wifi_source_ticket";
+    public static final String EXTRA_PAIRING_CODE = "dream_wifi_pairing_code";
+    public static final String EXTRA_SOURCE_TOKEN = "dream_wifi_source_token";
+    public static final String EXTRA_SOURCE_ID = "dream_wifi_source_id";
     public static final String EXTRA_SOURCE_ONLY = "dream_wifi_source_only";
     private static final int ID = 7201;
     private static final String CHANNEL = "dream_wifi_vpn";
@@ -70,16 +73,18 @@ public final class DreamVpnService extends VpnService {
             updateNotification("Dream Wi-Fi is already connecting or running.");
             return START_NOT_STICKY;
         }
-        String accessToken = intent == null ? null : intent.getStringExtra(EXTRA_ACCESS_TOKEN);
-        String refreshToken = intent == null ? null : intent.getStringExtra(EXTRA_REFRESH_TOKEN);
-        String sourceTicket = intent == null ? null : intent.getStringExtra(EXTRA_SOURCE_TICKET);
-        if (accessToken == null || accessToken.isEmpty() || refreshToken == null || refreshToken.isEmpty() || sourceTicket == null || sourceTicket.isEmpty()) {
-            updateNotification("Sign in again to authorize Dream Wi-Fi.");
+        boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
+        String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
+        String sourceToken = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_TOKEN);
+        String enrolledSourceId = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_ID);
+        if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
+                : pairingCode == null || pairingCode.trim().isEmpty()) {
+            updateNotification(sourceOnly
+                    ? "Source enrollment failed. Publish this phone again to obtain a source credential."
+                    : "Enter a valid one-time source pairing code in Dream Wi-Fi.");
             stopSelf();
             return START_NOT_STICKY;
         }
-
-        boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         Network sourceNetwork = sourceOnly ? findConnectedWifiNetwork() : null;
         if (sourceOnly && sourceNetwork == null) {
             updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
@@ -88,7 +93,7 @@ public final class DreamVpnService extends VpnService {
         }
         String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
         Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
-        relay = new DreamWifiRelay(accessToken, refreshToken, sourceTicket, sourceOnly, sourceNetwork, controlNetwork, sourceName, new DreamWifiRelay.Listener() {
+        relay = new DreamWifiRelay(pairingCode, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
                 if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("captive portal redirect detected")) {
                     captivePortalMode = true;

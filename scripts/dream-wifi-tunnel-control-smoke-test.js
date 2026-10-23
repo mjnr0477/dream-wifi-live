@@ -37,7 +37,7 @@ async function main() {
   });
 
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
-  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedServer, restartedWss;
+  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedServer, restartedWss, failingServer, failingWss;
   try {
     source = new WebSocket(url);
     await waitOpen(source);
@@ -187,6 +187,15 @@ async function main() {
     assert.equal((await restoredRegistration).sourceId, enrollment.sourceId);
     assert.match((await restoredPairingCode).code, /^[A-F0-9]{12}$/);
 
+    failingServer = http.createServer();
+    await new Promise(resolve => failingServer.listen(0, "127.0.0.1", resolve));
+    failingWss = attachDreamWifiTunnel(failingServer, {
+      onEnrollSource: () => false
+    });
+    assert.throws(() => failingWss.enrollSource(), /persistence failed/i);
+    assert.equal(failingWss.getEnrolledSourceCredentials().length, 0,
+      "A source credential must not remain usable when persistence fails.");
+
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {
     for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment, restartedSource]) {
@@ -195,6 +204,8 @@ async function main() {
     await new Promise(resolve => wss.close(resolve));
     if (restartedWss) await new Promise(resolve => restartedWss.close(resolve));
     if (restartedServer) await new Promise(resolve => restartedServer.close(resolve));
+    if (failingWss) await new Promise(resolve => failingWss.close(resolve));
+    if (failingServer) await new Promise(resolve => failingServer.close(resolve));
     await new Promise(resolve => server.close(resolve));
   }
 }

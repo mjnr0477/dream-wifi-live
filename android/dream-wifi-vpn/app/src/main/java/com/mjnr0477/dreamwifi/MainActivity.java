@@ -118,7 +118,7 @@ public final class MainActivity extends Activity {
         box.addView(shareHeading);
 
         TextView shareHelp = new TextView(this);
-        shareHelp.setText("Connect to Wi-Fi with working internet, then start sharing and give your code to the person you authorize.");
+        shareHelp.setText("Connect to Wi-Fi with working internet, then start sharing. Your code stays available while sharing is online; give it only to the person you authorize.");
         shareHelp.setTextColor(android.graphics.Color.rgb(203, 213, 225));
         shareHelp.setTextSize(14);
         shareHelp.setPadding(0, 6, 0, 10);

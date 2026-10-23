@@ -37,6 +37,25 @@ function connect(url) {
   return { socket, next };
 }
 
+async function waitOpen(endpoint) {
+  await new Promise((resolve, reject) => {
+    endpoint.socket.once("open", resolve);
+    endpoint.socket.once("error", reject);
+  });
+}
+
+async function rejectedPairing(url, code, label) {
+  const client = connect(url);
+  try {
+    await waitOpen(client);
+    client.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: code }));
+    const denied = await client.next(m => m.type === "error", label);
+    assert.match(denied.error, /pairing code|valid|unexpired/i, label);
+  } finally {
+    try { client.socket.close(); } catch (_) {}
+  }
+}
+
 async function main() {
   const server = http.createServer();
   const tunnel = attachDreamWifiTunnel(server, {
@@ -45,6 +64,7 @@ async function main() {
 
   let source;
   let owner;
+  let revokedTokenClient;
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -54,10 +74,7 @@ async function main() {
 
   try {
     source = connect(url);
-    await new Promise((resolve, reject) => {
-      source.socket.once("open", resolve);
-      source.socket.once("error", reject);
-    });
+    await waitOpen(source);
     source.socket.send(JSON.stringify({
       type: "register",
       role: "source",
@@ -69,17 +86,19 @@ async function main() {
     assert.equal(sourceRegistered.sourceId, "integration-source");
     const pairing = await source.next(m => m.type === "pairing-code", "one-time pairing code");
 
+    await rejectedPairing(url, "NOT-A-VALID-CODE", "invalid pairing code rejection");
+
     owner = connect(url);
-    await new Promise((resolve, reject) => {
-      owner.socket.once("open", resolve);
-      owner.socket.once("error", reject);
-    });
+    await waitOpen(owner);
     owner.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
     const ownerRegistration = await owner.next(m => m.type === "registered" && m.role === "client", "paired client registration");
     assert.equal(ownerRegistration.sourceId, "integration-source");
     assert.ok(ownerRegistration.accessToken.length >= 40);
+    const accessToken = ownerRegistration.accessToken;
     const sourceList = await owner.next(m => m.type === "source-list", "owner source list");
     assert.deepEqual(sourceList.sources.map(item => item.id), ["integration-source"], "Paired receiver should only see its authorized source.");
+
+    await rejectedPairing(url, pairing.code, "one-time pairing code reuse rejection");
 
     owner.socket.send(JSON.stringify({
       type: "tcp-open",
@@ -109,10 +128,7 @@ async function main() {
 
     const publicClient = connect(url);
     try {
-      await new Promise((resolve, reject) => {
-        publicClient.socket.once("open", resolve);
-        publicClient.socket.once("error", reject);
-      });
+      await waitOpen(publicClient);
       publicClient.socket.send(JSON.stringify({ type: "register", role: "client" }));
       const denied = await publicClient.next(m => m.type === "error", "anonymous client rejection");
       assert.match(denied.error, /pairing code/i);
@@ -120,9 +136,20 @@ async function main() {
       try { publicClient.socket.close(); } catch (_) {}
     }
 
-    console.log("Dream Wi-Fi tunnel protocol integration test passed.");
+    source.socket.send(JSON.stringify({ type: "revoke-pairings" }));
+    await source.next(m => m.type === "pairings-revoked", "source pairing revocation acknowledgement");
+    const revoked = await owner.next(m => m.type === "error", "active receiver revocation");
+    assert.match(revoked.error, /revoked/i, "Revoking pairings must terminate active receiver sessions.");
+
+    revokedTokenClient = connect(url);
+    await waitOpen(revokedTokenClient);
+    revokedTokenClient.socket.send(JSON.stringify({ type: "register", role: "owner", accessToken }));
+    const staleDenied = await revokedTokenClient.next(m => m.type === "error", "revoked receiver token rejection");
+    assert.match(staleDenied.error, /invalid|expired/i, "A revoked receiver token must not restore access.");
+
+    console.log("Dream Wi-Fi tunnel protocol integration test passed (pairing, one-time use, relay, and revocation).");
   } finally {
-    for (const endpoint of [owner, source]) {
+    for (const endpoint of [revokedTokenClient, owner, source]) {
       if (endpoint && endpoint.socket.readyState !== WebSocket.CLOSED) {
         try { endpoint.socket.close(); } catch (_) {}
       }

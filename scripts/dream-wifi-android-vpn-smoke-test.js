@@ -41,7 +41,7 @@ assert.match(service, /DreamWifiCredentialStore\.clearSource/);
 assert.match(activity, /VpnService\.prepare/);
 assert.match(activity, /api\/dream-wifi\/source-enroll/);
 assert.match(activity, /Remote source network:/);
-assert.match(activity, /Receiver local Wi-Fi:/);
+assert.match(activity, /This phone's current Wi-Fi:/);
 assert.match(activity, /Receiver hotspot name:/);
 assert.match(activity, /Hotspot forwarding: Not implemented\/verified/);
 assert.match(activity, /getReceiverWifiName/);

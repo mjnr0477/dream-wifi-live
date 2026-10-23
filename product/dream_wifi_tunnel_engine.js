@@ -43,6 +43,7 @@ function attachDreamWifiTunnel(server, options = {}) {
   const pairingCodes = new Map();
   const pairingTokens = new Map();
   const pairingAttempts = new Map();
+  const enrolledSourceTokens = new Map();
   const pendingPings = new Map();
   const streams = new Map();
   const udpAssociations = new Map();
@@ -93,9 +94,12 @@ function attachDreamWifiTunnel(server, options = {}) {
     const selected = sources.get(requestedId);
     return selected && selected.readyState === WebSocket.OPEN ? selected : null;
   }
-  function sourceAuthKind(candidate) {
+  function sourceAuthKind(candidate, proposedId) {
     const supplied = String(candidate || "");
-    return sourceToken && safeEqual(supplied, sourceToken) ? { kind: "static", ownerId: null } : null;
+    if (sourceToken && safeEqual(supplied, sourceToken)) return { kind: "static", ownerId: null };
+    const enrolled = supplied ? enrolledSourceTokens.get(hashCredential(supplied)) : null;
+    if (enrolled && enrolled.sourceId === proposedId) return { kind: "enrolled", ownerId: enrolled.sourceId };
+    return null;
   }
   function hashCredential(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
   function issuePairingCode(sourceSocket) {
@@ -197,13 +201,13 @@ function attachDreamWifiTunnel(server, options = {}) {
         socket.registering = true;
 
         if (message.role === "source") {
-          const sourceAuth = sourceAuthKind(message.sourceToken);
+          const proposedId = String(message.sourceId || "").trim();
+          const sourceAuth = sourceAuthKind(message.sourceToken, proposedId);
           if (!sourceAuth) {
             reject(socket, "Source endpoint is not authorized or not configured.");
             return;
           }
           const sourceName = String(message.sourceName || "").trim().replace(/[<>\x00-\x1f]/g, "").slice(0, 80) || "Dream Wi-Fi source";
-          const proposedId = String(message.sourceId || "").trim();
           const sourceId = /^[a-zA-Z0-9_-]{1,80}$/.test(proposedId)
             ? proposedId
             : crypto.createHash("sha256").update(sourceName + "|" + (sourceAuth.ownerId || "static")).digest("hex").slice(0, 24);
@@ -476,6 +480,12 @@ function attachDreamWifiTunnel(server, options = {}) {
 
   wss.sourceConnected = sourceConnected;
   wss.getSources = () => [...sources.values()].map(sourceDetails);
+  wss.enrollSource = () => {
+    const sourceId = crypto.randomUUID().replace(/-/g, "");
+    const sourceTokenValue = crypto.randomBytes(32).toString("base64url");
+    enrolledSourceTokens.set(hashCredential(sourceTokenValue), { sourceId, createdAt: Date.now() });
+    return { sourceId, sourceToken: sourceTokenValue };
+  };
   wss.revokePairingsForSource = sourceId => {
     const id = String(sourceId || "");
     for (const [tokenHash, credential] of pairingTokens.entries()) if (credential.sourceId === id) pairingTokens.delete(tokenHash);

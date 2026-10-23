@@ -41,7 +41,7 @@ import okhttp3.WebSocketListener;
  */
 final class DreamWifiRelay {
     static final String BASE_URL = BuildConfig.DREAM_WIFI_BASE_URL;
-    static final String TUNNEL_URL = BASE_URL.isEmpty() ? "" : BASE_URL.replaceFirst("^https://", "wss://").replaceFirst("^http://", "ws://") + "/api/dream-education/dream-wifi/tunnel";
+    static final String TUNNEL_URL = BASE_URL.isEmpty() ? "" : BASE_URL.replaceFirst("^https://", "wss://").replaceFirst("^http://", "ws://") + "/api/dream-wifi/tunnel";
     static final int LOCAL_PROXY_PORT = 1081;
     private static final int MAX_CHUNK = 12 * 1024;
     private static final int MAX_UDP_BYTES = 8192;
@@ -58,6 +58,8 @@ final class DreamWifiRelay {
     private final Network sourceNetwork;
     private final Network controlNetwork;
     private final String sourceName;
+    private final double sourceLatitude;
+    private final double sourceLongitude;
     private final ExecutorService workers = Executors.newCachedThreadPool();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ConcurrentHashMap<String, Stream> ownerStreams = new ConcurrentHashMap<>();
@@ -67,14 +69,13 @@ final class DreamWifiRelay {
     private final AtomicBoolean readyNotified = new AtomicBoolean(false);
     private final AtomicBoolean ownerRetryScheduled = new AtomicBoolean(false);
     private final AtomicBoolean sourceRetryScheduled = new AtomicBoolean(false);
-    private final AtomicBoolean sessionRefreshRunning = new AtomicBoolean(false);
     private final AtomicBoolean probeInProgress = new AtomicBoolean(false);
 
-    private volatile String accessToken;
-    private volatile String refreshToken;
+    private volatile String accessToken = "";
     private volatile String sourceTicket;
+    private volatile String pairingCode;
     private volatile String selectedSourceId = "";
-    private final String sourceId = "android-" + UUID.randomUUID().toString().replace("-", "");
+    private final String sourceId;
     private volatile WebSocket ownerSocket;
     private volatile WebSocket sourceSocket;
     private volatile boolean ownerReady;
@@ -86,16 +87,20 @@ final class DreamWifiRelay {
     private volatile String activeProbeId;
     private volatile StringBuilder activeProbeResponse;
 
-    DreamWifiRelay(String accessToken, String refreshToken, String sourceTicket,
-                   boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName, Listener listener) {
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.sourceTicket = sourceTicket;
+    DreamWifiRelay(String pairingCode, String sourceToken, String sourceId,
+                   boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName,
+                   double sourceLatitude, double sourceLongitude, Listener listener) {
+        this.pairingCode = pairingCode == null ? "" : pairingCode.trim().toUpperCase(java.util.Locale.ROOT);
+        this.sourceTicket = sourceToken == null ? "" : sourceToken;
+        this.sourceId = sourceId == null || sourceId.trim().isEmpty()
+                ? "android-" + UUID.randomUUID().toString().replace("-", "") : sourceId.trim();
         this.sourceOnly = sourceOnly;
         this.sourceNetwork = sourceNetwork;
         this.controlNetwork = controlNetwork;
         this.sourceName = sourceName == null || sourceName.trim().isEmpty()
                 ? "Android " + android.os.Build.MODEL : sourceName.trim();
+        this.sourceLatitude = sourceLatitude;
+        this.sourceLongitude = sourceLongitude;
         OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .pingInterval(25, TimeUnit.SECONDS)
                 .connectTimeout(15, TimeUnit.SECONDS)
@@ -115,18 +120,10 @@ final class DreamWifiRelay {
         if (!sourceOnly) {
             workers.execute(this::serveSocks);
             connectOwner();
+        } else {
+            connectSource();
+            scheduler.scheduleAtFixedRate(() -> workers.execute(this::reportSourceInternetHealth), 0, 60, TimeUnit.SECONDS);
         }
-        connectSource();
-        scheduler.scheduleAtFixedRate(() -> workers.execute(this::renewOwnerSession), 40, 40, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(() -> workers.execute(() -> {
-            if (!running.get()) return;
-            renewSourceTicket();
-            WebSocket current = sourceSocket;
-            if (current != null) {
-                sourceReady = false;
-                current.close(1000, "source ticket rotation");
-            }
-        }), 10, 10, TimeUnit.HOURS);
         status(sourceOnly
                 ? controlNetwork == null
                     ? "No separate validated cellular route found. If Quant blocks internet before payment, activate the package locally first."
@@ -136,6 +133,15 @@ final class DreamWifiRelay {
 
     boolean isReady() {
         return running.get() && ownerReady && proxyServer != null && !proxyServer.isClosed();
+    }
+
+    void revokePairings() {
+        if (!sourceOnly || !sourceReady || sourceSocket == null) {
+            status("Source must be connected before receiver pairings can be revoked.");
+            return;
+        }
+        sendSource(new SafeJson().putSafe("type", "revoke-pairings").toString());
+        status("Requested revocation of all receiver pairings for this source.");
     }
 
     void setSelectedSourceId(String sourceId) {
@@ -272,13 +278,19 @@ final class DreamWifiRelay {
 
     private void connectOwner() {
         if (!running.get()) return;
+        if (accessToken.isEmpty() && pairingCode.isEmpty()) {
+            status("No valid pairing credential. Disconnect and enter a fresh source pairing code.");
+            return;
+        }
         Request request = new Request.Builder().url(TUNNEL_URL).build();
         ownerSocket = http.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket webSocket, Response response) {
                 if (!running.get()) { webSocket.close(1000, "stopped"); return; }
                 ownerSocket = webSocket;
-                webSocket.send(new SafeJson().putSafe("type", "register")
-                        .putSafe("role", "owner").putSafe("accessToken", accessToken).toString());
+                SafeJson registration = new SafeJson().putSafe("type", "register").putSafe("role", "client");
+                if (!accessToken.isEmpty()) registration.putSafe("accessToken", accessToken);
+                else registration.putSafe("pairingCode", pairingCode);
+                webSocket.send(registration.toString());
                 status("Authenticating owner control channel…");
             }
             @Override public void onMessage(WebSocket webSocket, String text) {
@@ -286,10 +298,14 @@ final class DreamWifiRelay {
                 JSONObject message;
                 try { message = new JSONObject(text); } catch (Exception ignored) { return; }
                 String type = message.optString("type", "");
-                if ("registered".equals(type) && "owner".equals(message.optString("role"))) {
+                if ("registered".equals(type) && ("client".equals(message.optString("role")) || "owner".equals(message.optString("role")))) {
+                    accessToken = message.optString("accessToken", accessToken);
+                    pairingCode = "";
+                    String pairedSourceId = message.optString("sourceId", "");
+                    if (selectedSourceId.isEmpty() && !pairedSourceId.isEmpty()) selectedSourceId = pairedSourceId;
                     ownerReady = true;
                     ownerRetrySeconds = 3;
-                    status("Owner authenticated; discovering registered Wi-Fi sources…");
+                    status("Receiver paired securely; checking the selected source and public internet…");
                     notifyReadyIfPossible();
                 } else if ("tcp-opened".equals(type)) {
                     String id = message.optString("id", "");
@@ -361,10 +377,15 @@ final class DreamWifiRelay {
                 } else if ("error".equals(type)) {
                     String reason = message.optString("error", "authorization failed");
                     status("Owner channel rejected: " + reason);
-                    if (reason.toLowerCase().contains("owner access") || reason.toLowerCase().contains("authentication failed")) {
-                        workers.execute(DreamWifiRelay.this::renewOwnerSession);
+                    String lowerReason = reason.toLowerCase(java.util.Locale.ROOT);
+                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired")) {
+                        accessToken = "";
+                        pairingCode = "";
+                        status("Receiver pairing expired or was revoked. Disconnect and enter a fresh source pairing code.");
+                    } else if (accessToken.isEmpty()) {
+                        pairingCode = "";
                     }
-                    webSocket.close(1008, "owner authorization rejected");
+                    webSocket.close(1008, "receiver authorization rejected");
                 }
             }
             @Override public void onClosed(WebSocket webSocket, int code, String reason) {
@@ -389,16 +410,20 @@ final class DreamWifiRelay {
     }
 
     private void connectSource() {
-        if (!running.get()) return;
+        if (!running.get() || sourceTicket == null || sourceTicket.isEmpty()) return;
         Request request = new Request.Builder().url(TUNNEL_URL).build();
         sourceSocket = http.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket webSocket, Response response) {
                 if (!running.get()) { webSocket.close(1000, "stopped"); return; }
                 sourceSocket = webSocket;
-                webSocket.send(new SafeJson().putSafe("type", "register")
+                SafeJson registration = new SafeJson().putSafe("type", "register")
                         .putSafe("role", "source").putSafe("sourceToken", sourceTicket)
-                        .putSafe("sourceId", sourceId)
-                        .putSafe("sourceName", sourceName).toString());
+                        .putSafe("sourceId", sourceId).putSafe("sourceName", sourceName);
+                if (Double.isFinite(sourceLatitude) && sourceLatitude >= -90 && sourceLatitude <= 90
+                        && Double.isFinite(sourceLongitude) && sourceLongitude >= -180 && sourceLongitude <= 180) {
+                    registration.putSafe("latitude", sourceLatitude).putSafe("longitude", sourceLongitude);
+                }
+                webSocket.send(registration.toString());
                 status(sourceOnly ? "Authenticating Wi-Fi source tunnel…" : "Authenticating remote Wi-Fi source…");
             }
             @Override public void onMessage(WebSocket webSocket, String text) {
@@ -411,6 +436,12 @@ final class DreamWifiRelay {
                     sourceRetrySeconds = 3;
                     status(sourceOnly ? "This phone is now publishing its connected Wi-Fi source." : "Remote Wi-Fi source authenticated; waiting for owner channel…");
                     notifyReadyIfPossible();
+                } else if ("pairing-code".equals(type)) {
+                    status("Source is online. Receiver pairing code: " + message.optString("code", "")
+                            + " · expires in " + Math.max(1, (message.optInt("expiresInSeconds", 600) + 59) / 60)
+                            + " minute(s). Share this code only with the receiver you authorize.");
+                } else if ("pairings-revoked".equals(type)) {
+                    status("All receiver pairings for this source have been revoked.");
                 } else if ("ping".equals(type)) {
                     sendSource(new SafeJson().putSafe("type", "pong").putSafe("id", message.optString("id", "")).toString());
                 } else if ("tcp-open".equals(type)) {
@@ -431,9 +462,7 @@ final class DreamWifiRelay {
                 } else if ("error".equals(type)) {
                     String reason = message.optString("error", "authorization failed");
                     status("Source channel rejected: " + reason);
-                    if (reason.toLowerCase().contains("not authorized") || reason.toLowerCase().contains("not configured")) {
-                        workers.execute(DreamWifiRelay.this::renewSourceTicket);
-                    }
+                    if (reason.toLowerCase().contains("not authorized") || reason.toLowerCase().contains("not configured")) sourceTicket = "";
                     webSocket.close(1008, "source authorization rejected");
                 }
             }
@@ -459,7 +488,7 @@ final class DreamWifiRelay {
     }
 
     private void scheduleOwnerReconnect() {
-        if (!running.get() || !ownerRetryScheduled.compareAndSet(false, true)) return;
+        if (!running.get() || (accessToken.isEmpty() && pairingCode.isEmpty()) || !ownerRetryScheduled.compareAndSet(false, true)) return;
         int delay = ownerRetrySeconds;
         ownerRetrySeconds = Math.min(ownerRetrySeconds * 2, 60);
         scheduler.schedule(() -> {
@@ -469,7 +498,7 @@ final class DreamWifiRelay {
     }
 
     private void scheduleSourceReconnect() {
-        if (!running.get() || !sourceRetryScheduled.compareAndSet(false, true)) return;
+        if (!running.get() || sourceTicket == null || sourceTicket.isEmpty() || !sourceRetryScheduled.compareAndSet(false, true)) return;
         int delay = sourceRetrySeconds;
         sourceRetrySeconds = Math.min(sourceRetrySeconds * 2, 60);
         scheduler.schedule(() -> {
@@ -609,6 +638,31 @@ final class DreamWifiRelay {
         } catch (Exception ignored) {}
     }
 
+    private void reportSourceInternetHealth() {
+        if (!running.get() || !sourceOnly || sourceNetwork == null || !sourceReady) return;
+        workers.execute(() -> {
+            boolean ready = false;
+            String error = "internet_probe_failed";
+            HttpURLConnection connection = null;
+            try {
+                java.net.URL url = new java.net.URL("https://connectivitycheck.gstatic.com/generate_204");
+                connection = (HttpURLConnection) sourceNetwork.openConnection(url);
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestMethod("GET");
+                ready = connection.getResponseCode() == 204;
+                error = ready ? "" : "http_" + connection.getResponseCode();
+            } catch (Exception failure) {
+                error = safeReason(failure.getMessage());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+            sendSource(new SafeJson().putSafe("type", "source-health").putSafe("ready", ready)
+                    .putSafe("error", error).putSafe("checkedAt", java.time.Instant.now().toString()).toString());
+        });
+    }
+
     private void openSourceStream(JSONObject message) {
         String id = message.optString("id", "");
         String host = message.optString("host", "").trim();
@@ -684,79 +738,6 @@ final class DreamWifiRelay {
             return (HttpURLConnection) controlNetwork.openConnection(url);
         }
         return (HttpURLConnection) url.openConnection();
-    }
-
-    private void renewOwnerSession() {
-        if (!running.get() || refreshToken == null || refreshToken.isEmpty()
-                || !sessionRefreshRunning.compareAndSet(false, true)) return;
-        HttpURLConnection connection = null;
-        try {
-            connection = openControlConnection(BASE_URL + "/api/auth/refresh");
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json");
-            byte[] body = new SafeJson().putSafe("refresh_token", refreshToken).toString().getBytes(StandardCharsets.UTF_8);
-            try (OutputStream output = connection.getOutputStream()) { output.write(body); }
-            int code = connection.getResponseCode();
-            InputStream response = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-            if (response == null) throw new IOException("No session-refresh response.");
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (InputStream input = response) {
-                byte[] buffer = new byte[2048]; int count;
-                while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
-            }
-            JSONObject result = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-            JSONObject session = result.optJSONObject("session");
-            String newAccess = session == null ? "" : session.optString("access_token", "");
-            String newRefresh = session == null ? "" : session.optString("refresh_token", "");
-            if (code < 200 || code >= 300 || !result.optBoolean("success") || newAccess.isEmpty() || newRefresh.isEmpty()) {
-                status("Dream Education session needs a fresh sign-in before reconnecting.");
-                return;
-            }
-            accessToken = newAccess;
-            refreshToken = newRefresh;
-        } catch (Exception error) {
-            status("Dream Education session refresh failed: " + safeReason(error.getMessage()));
-        } finally {
-            if (connection != null) connection.disconnect();
-            sessionRefreshRunning.set(false);
-        }
-    }
-
-    private void renewSourceTicket() {
-        HttpURLConnection connection = null;
-        try {
-            connection = openControlConnection(BASE_URL + "/api/dream-wifi/source-ticket");
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("Authorization", "Bearer " + accessToken);
-            try (OutputStream output = connection.getOutputStream()) { output.write(new byte[0]); }
-            int code = connection.getResponseCode();
-            InputStream response = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-            if (response == null) throw new IOException("No source-ticket response.");
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (InputStream input = response) {
-                byte[] buffer = new byte[2048]; int count;
-                while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
-            }
-            JSONObject result = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-            String fresh = result.optString("token", "");
-            if (code < 200 || code >= 300 || !result.optBoolean("success") || fresh.isEmpty()) {
-                status("Could not renew the Quant source ticket. Sign in again if the session has expired.");
-                return;
-            }
-            sourceTicket = fresh;
-            status("Source ticket renewed; reconnecting to Quant source…");
-        } catch (Exception error) {
-            status("Source ticket renewal failed: " + safeReason(error.getMessage()));
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
     }
 
     private InetAddress resolvePublicAddress(String host) throws IOException {

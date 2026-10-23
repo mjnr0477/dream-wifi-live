@@ -67,7 +67,7 @@ async function main() {
     latitude: 14.567, longitude: 47.891, radiusKm: 5, now,
     fetchImpl: async url => { calls.push(url); throw new Error("provider offline"); }
   }), /temporarily unavailable/);
-  assert.equal(calls.length, 3, "All public map endpoints should be attempted before reporting an outage.");
+  assert.equal(calls.length, 5, "All public map endpoints should be attempted before reporting an outage.");
 
   console.log("Dream Wi-Fi public hotspot discovery smoke test passed (validation, filtering, cache, fallback, outage handling).");
 }

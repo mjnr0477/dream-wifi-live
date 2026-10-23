@@ -32,11 +32,13 @@ async function registerSource(url, sourceId, sourceName, sourceToken = "shared-t
   const socket = new WebSocket(url);
   await waitOpen(socket);
   const registered = waitMessage(socket, message => message.type === "registered");
+  const pairingCode = waitMessage(socket, message => message.type === "pairing-code");
   socket.send(JSON.stringify({
     type: "register", role: "source", sourceToken, sourceId, sourceName
   }));
   const result = await registered;
   assert.equal(result.sourceId, sourceId);
+  socket.pairingCode = (await pairingCode).code;
   return socket;
 }
 async function main() {
@@ -46,7 +48,7 @@ async function main() {
   const wss = attachDreamWifiTunnel(server, {
     sourceToken: "shared-test-token",
   });
-  const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
+  const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
   let sourceA, sourceB, owner;
   try {
     sourceA = await registerSource(url, "source-a", "Local test router");
@@ -54,13 +56,13 @@ async function main() {
     owner = new WebSocket(url);
     await waitOpen(owner);
     const registered = waitMessage(owner, message => message.type === "registered" && message.role === "client");
-    const list = waitMessage(owner, message => message.type === "source-list" && Array.isArray(message.sources) && message.sources.length === 2);
-    owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
-    await registered;
+    const list = waitMessage(owner, message => message.type === "source-list" && Array.isArray(message.sources));
+    owner.send(JSON.stringify({ type: "register", role: "owner", pairingCode: sourceB.pairingCode }));
+    const paired = await registered;
+    assert.equal(paired.sourceId, "source-b");
     const available = await list;
-    assert.deepEqual(available.sources.map(source => source.id).sort(), ["source-a", "source-b"]);
-    assert.equal(available.sources.find(source => source.id === "source-a").name, "Local test router");
-    assert.equal(available.sources.find(source => source.id === "source-b").name, "Remote test gateway");
+    assert.deepEqual(available.sources.map(source => source.id), ["source-b"]);
+    assert.equal(available.sources[0].name, "Remote test gateway");
 
     const spoof = new WebSocket(url);
     await waitOpen(spoof);
@@ -83,6 +85,9 @@ async function main() {
     assert.equal(pong.success, true);
     assert.equal(pong.sourceId, "source-b");
 
+    const deniedOtherSource = waitMessage(owner, message => message.type === "tcp-error" && message.id === "unauthorized-source-test");
+    owner.send(JSON.stringify({ type: "tcp-open", id: "unauthorized-source-test", host: "example.com", port: 443, sourceId: "source-a" }));
+    assert.match((await deniedOtherSource).error, /accessible source/i);
     const sourceOpen = waitMessage(sourceB, message => message.type === "tcp-open" && message.id === "selected-source-test");
     const ownerOpened = waitMessage(owner, message => message.type === "tcp-opened" && message.id === "selected-source-test");
     owner.send(JSON.stringify({ type: "tcp-open", id: "selected-source-test", host: "example.com", port: 443, sourceId: "source-b" }));

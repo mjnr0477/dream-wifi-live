@@ -9,6 +9,7 @@ const os = require("node:os");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { WebSocket } = require("ws");
+const readline = require("node:readline");
 const execFileAsync = promisify(execFile);
 
 const tunnelUrl = String(process.env.DREAM_WIFI_TUNNEL_URL || "").trim();
@@ -44,6 +45,7 @@ let stopped = false;
 let socket = null;
 let reconnectTimer = null;
 let heartbeatTimer = null;
+let healthTimer = null;
 let reconnectDelayMs = 5000;
 
 async function detectSourceName() {
@@ -123,6 +125,41 @@ async function resolvePublicHost(host) {
   }
   return answers[0];
 }
+async function checkSourceInternet() {
+  const checkedSocket = socket;
+  if (!checkedSocket || checkedSocket.readyState !== WebSocket.OPEN) return;
+  let ready = false, errorMessage = null;
+  try {
+    const target = await resolvePublicHost("example.com");
+    if (socket !== checkedSocket || checkedSocket.readyState !== WebSocket.OPEN) return;
+    await new Promise(resolve => {
+      let settled = false;
+      const tcp = net.createConnection({ host: target.address, family: target.family, port: 443 });
+      const finish = (success, error) => {
+        if (settled) return;
+        settled = true;
+        ready = success;
+        errorMessage = error || null;
+        tcp.destroy();
+        resolve();
+      };
+      tcp.setTimeout(5000, () => finish(false, "internet_probe_timeout"));
+      tcp.once("connect", () => finish(true, null));
+      tcp.once("error", error => finish(false, String(error.code || "internet_probe_failed")));
+    });
+  } catch (error) {
+    errorMessage = String(error.code || error.message || "internet_probe_failed").slice(0, 120);
+  }
+  if (socket === checkedSocket && checkedSocket.readyState === WebSocket.OPEN) {
+    checkedSocket.send(JSON.stringify({
+      type: "source-health",
+      ready,
+      error: errorMessage,
+      checkedAt: new Date().toISOString()
+    }));
+  }
+}
+
 function closeUdpFlow(key) {
   const entry = udpSockets.get(key); if (!entry) return; udpSockets.delete(key);
   if (entry.timer) clearTimeout(entry.timer); try { entry.socket.close(); } catch (_) {}
@@ -249,7 +286,15 @@ function connect() {
     try { message = JSON.parse(raw.toString("utf8")); } catch (_) { return; }
     if (message.type === "registered" && message.role === "source") {
       reconnectDelayMs = 5000;
-      console.log("Dream Tunnel source authenticated; public HTTP/HTTPS relay is ready for owner-authorized tests.");
+      console.log("Dream Tunnel source authenticated; relay is waiting for an authorized receiver pairing.");
+      if (healthTimer) clearInterval(healthTimer);
+      checkSourceInternet();
+      healthTimer = setInterval(checkSourceInternet, 60000);
+    } else if (message.type === "pairing-code" && typeof message.code === "string") {
+      console.log("\\nDream Wi-Fi receiver pairing code: " + message.code);
+      console.log("Give this code only to the receiver you authorize. It expires in " + Math.ceil(Number(message.expiresInSeconds || 600) / 60) + " minutes and can be used once.\\n");
+    } else if (message.type === "pairings-revoked") {
+      console.log("All receiver pairings for this source have been revoked.");
     } else if (message.type === "ping" && typeof message.id === "string") {
       send({ type: "pong", id: message.id });
     } else if (message.type === "tcp-open") {
@@ -277,7 +322,9 @@ function connect() {
   currentSocket.on("close", (code, reason) => {
     if (socket !== currentSocket) return;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (healthTimer) clearInterval(healthTimer);
     heartbeatTimer = null;
+    healthTimer = null;
     pendingOpens.clear();
     for (const id of [...streams.keys()]) closeStream(id, false);
     for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
@@ -304,11 +351,25 @@ function shutdown() {
   stopped = true;
   if (reconnectTimer) clearTimeout(reconnectTimer);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (healthTimer) clearInterval(healthTimer);
   heartbeatTimer = null;
+  healthTimer = null;
   for (const id of [...streams.keys()]) closeStream(id, false);
   for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
   if (socket) socket.close();
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+if (process.stdin.isTTY) {
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
+  terminal.on("line", line => {
+    const command = line.trim().toLowerCase();
+    if (command === "revoke") {
+      send({ type: "revoke-pairings" });
+      console.log("Requested revocation of all receiver pairings for this source.");
+    } else if (command === "help") {
+      console.log("Source commands: revoke (invalidate all receiver pairings), help.");
+    }
+  });
+}
 connect();

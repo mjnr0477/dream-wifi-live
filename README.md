@@ -1,29 +1,38 @@
 # Dream Wi-Fi
 
-Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education and Supabase.
+Standalone Dream Wi-Fi / Dream Tunnel service, separate from Dream Education. Production source credential and source-directory persistence can use a server-only Supabase database.
+
+**Public release status: BLOCKED.** The backend CI tests and Android debug APK build have passed, but durable production storage, a production-aligned deployment, and physical-device end-to-end acceptance remain incomplete. See [Public Release Gate](docs/PUBLIC-RELEASE-GATE.md) for the mandatory evidence checklist. Do not publish the debug APK or advertise unrestricted internet/hotspot support as production-ready.
 
 ## Wi-Fi discovery
 - The web app requests the visitor's location and searches a radius up to 300 km.
 - **Public Wi-Fi locations:** queries OpenStreetMap for mapped venues explicitly tagged as offering Wi-Fi, with a short server-side cache and a fallback Overpass endpoint.
 - **Participating Dream Wi-Fi sources:** lists source devices that have opted in, reported coordinates, and connected to Dream Wi-Fi.
 - Public map entries are not live-verified; they may be closed, paid, password-protected, or inaccurately mapped. This is not a directory of every private router or SSID.
-- No owner login, Supabase account, Supabase keys, or database is required for public clients.
-- A source can relay traffic only while online and explicitly configured to share its network. The tunnel is a bounded HTTP/HTTPS relay, not a full-device VPN.
-- Public tunnel clients have per-IP connection limits and per-client stream limits. Source devices still require the server-only source token.
+- End users do not need Dream Education sign-in, Supabase accounts, or Supabase keys. The hosted backend does require server-side Supabase credentials when using database-backed durable storage.
+- `POST /api/dream-wifi/source-enroll` creates a unique source ID/token, rate-limited per IP. Receiver pairing uses a one-time source code (10-minute expiry) and returns a source-scoped receiver session (24-hour expiry).
+- A source can relay traffic only while online and explicitly configured to share its network. The server tunnel currently supports bounded TCP ports 80/443 and DNS UDP port 53; it is not proof of unrestricted application traffic.
+- When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured on the server, source credential hashes and source-directory records are stored in Supabase. The service verifies both tables before listening and only enables source enrollment after the database check succeeds. The service-role key must never be included in browser/mobile code or pasted into chat. If Supabase is not configured, the local-file fallback requires `DREAM_WIFI_DATA_DIR` on a durable writable disk and the operator's explicit `DREAM_WIFI_STORAGE_READY=true` attestation. Pairing codes and receiver sessions remain in memory, so receivers must pair again after backend restarts.
+- The legacy Node source agent still supports `DREAM_WIFI_SOURCE_TOKEN` configured only on the server/authorized source agent. Never put that shared secret in browser or APK code.
 
 ## Sharing and receiving roles
 - `/share.html` is the source-device setup guide. It explains that a person must run the authorized source agent; opening a link does not activate sharing.
-- `/receive.html` is the receiver dashboard. It lists connected source agents and can send a tunnel ping to verify the source responds.
-- A successful ping validates the control connection only, not end-to-end browsing. The receiver still needs a compatible local SOCKS client and a proxy-capable app; whole-device Android routing requires a dedicated VPN-capable app. Do not advertise one-tap/full-device internet access until that is implemented and tested.
+- `/receive.html` is the browser receiver. It requires a one-time code from the source owner and can run a real HTTP probe through the selected source relay.
+- The native prototype is in `android/dream-wifi-vpn`. Its core UI uses standalone source enrollment and receiver pairing, with Android `VpnService` and a native TUN-to-SOCKS engine. The Android debug APK build passed in GitHub Actions; physical-device acceptance testing remains outstanding.
+- A source-side DNS/TCP or HTTPS probe is reported separately from relay connection status. Neither is a substitute for an end-to-end receiver traffic test.
+- Downstream hotspot forwarding is not implemented/verified; do not advertise it as working.
 
 ## Environment
 Server:
-- `DREAM_WIFI_SOURCE_TOKEN`: long random secret used only by authorized source agents. Never put it in browser code.
-- `DREAM_WIFI_DATA_DIR`: optional writable directory for the source directory JSON file. Point this to a persistent disk mount to retain reports across host restarts/deploys.
+- `DREAM_WIFI_SOURCE_TOKEN`: legacy long random secret used only by authorized Node source agents. Never put it in browser or APK code.
+- `SUPABASE_URL`: URL for the approved Dream Wi-Fi Supabase project.
+- `SUPABASE_SERVICE_ROLE_KEY`: legacy server-only service-role API key for that project. Never use a publishable/anon key here, never expose this value to clients, and never paste it into chat.
+- `DREAM_WIFI_DATA_DIR`: local fallback directory for `sources.json` and hashed `source-credentials.json`; use only on a durable writable disk.
+- `DREAM_WIFI_STORAGE_READY=true`: explicit operator attestation for the local-file fallback only; it does not replace Supabase configuration on ephemeral hosts.
 - `PORT`: provided by the host.
 
 Authorized source device:
-- `DREAM_WIFI_TUNNEL_URL=wss://YOUR_HOST/api/dream-education/dream-wifi/tunnel`
+- `DREAM_WIFI_TUNNEL_URL=wss://YOUR_HOST/api/dream-wifi/tunnel` (the old path remains temporarily accepted)
 - `DREAM_WIFI_SOURCE_TOKEN`
 - `DREAM_WIFI_SOURCE_NAME`, `DREAM_WIFI_SOURCE_ID`
 - `DREAM_WIFI_SOURCE_LATITUDE` and `DREAM_WIFI_SOURCE_LONGITUDE`: decimal coordinates, unless the source agent can obtain location from Termux:API.
@@ -39,20 +48,17 @@ Open the hosted site and allow location permission. Public hotspot search sends 
 ```sh
 npm test
 ```
-Passing tests validate query construction and result filtering, not real-world map coverage or end-to-end browsing through a source. Test real HTTP/HTTPS traffic through an authorized source before advertising access.
+Passing tests validate protocol handling and query/result filtering, not real-world map coverage or end-to-end browsing through a source. Test real HTTP/HTTPS traffic through an authorized source before advertising access.
 
 ## Map attribution
 Public hotspot results are based on © OpenStreetMap contributors. Data coverage and accuracy vary by location.
 
 ## Real internet verification and mobile app status
 
-The receiver page now offers a real outbound HTTP probe over the selected source relay: it opens a TCP stream to `example.com:80`, sends an HTTP request, and only reports a pass when an HTTP response is received. This checks source-side outbound connectivity and returned relay data, unlike a control-plane ping. It is a diagnostic only, not full-device internet sharing.
+The browser receiver sends an HTTP request through the selected source relay and requires a valid response before reporting a pass. This is stronger than a control-plane ping, but it does not prove HTTPS/TLS through the phone, DNS routing for every app, or unrestricted full-device coverage.
 
-A consumer one-tap Android app is not yet implemented. Do not present the web pages as a substitute for it. The required mobile implementation must:
-- enroll the source device with a short-lived, revocable pairing credential rather than exposing the server's long-lived source token;
-- use Android's active network and reconnect with bounded backoff;
-- implement an Android `VpnService` receiver that routes supported traffic through the selected source, with user-approved VPN consent;
-- automatically choose a reachable local path when devices are on the same LAN or the TLS WebSocket relay when remote, while falling back safely when local connectivity is blocked;
-- perform an end-to-end HTTP/HTTPS test and report throughput, latency, loss, and disconnects without claiming that a source is healthy based only on a WebSocket ping.
+The native Android prototype includes user-approved VPN setup and foreground-service code. The debug APK builds, but source/receiver pairing, HTTP and HTTPS browsing, DNS, screen-off behavior, network changes, disconnect/reconnect, and traffic-leak prevention still require physical-device acceptance tests.
 
-Android and network policy constraints mean no app can guarantee internet when the source network has no internet, blocks relay traffic, or lacks capacity. The app must show a clear failure instead of falsely reporting connected.
+The intended downstream hotspot-forwarding feature is still a release blocker. Android VPN traffic is not automatically forwarded to tethered clients on every device. Do not claim third-device internet sharing until that device's real HTTPS requests pass through the selected source in a physical test.
+
+Android and network policy constraints mean no app can guarantee internet when the source network has no internet, blocks relay traffic, or lacks capacity. Dream Wi-Fi must show an honest failure rather than falsely report connected.

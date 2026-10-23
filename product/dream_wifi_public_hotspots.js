@@ -3,6 +3,8 @@
 // Public hotspot directory backed by OpenStreetMap data. This discovers mapped
 // public Wi-Fi venues; it cannot detect every SSID or private router remotely.
 const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
   "https://osm.hpi.de/overpass/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter"

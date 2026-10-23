@@ -36,20 +36,62 @@ async function main() {
     sourceToken: "test-source-secret",
   });
 
-  const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
-  let source, owner, nonOwner, legacy, nativeSource;
+  const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
+  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner, restartedServer, restartedWss, failingServer, failingWss;
   try {
+    const crossOrigin = new WebSocket(url, { headers: { Origin: "https://evil.example" } });
+    const crossOriginRejected = waitMessage(crossOrigin, m => m.type === "error");
+    await waitOpen(crossOrigin);
+    assert.match((await crossOriginRejected).error, /origin is not allowed/i);
+    crossOrigin.close();
+
     source = new WebSocket(url);
     await waitOpen(source);
     const sourceRegistered = waitMessage(source, m => m.type === "registered");
+    const pairingMessagePromise = waitMessage(source, m => m.type === "pairing-code");
     source.send(JSON.stringify({ type: "register", role: "source", sourceToken: "test-source-secret" }));
-    assert.equal((await sourceRegistered).role, "source");
+    const sourceRegistration = await sourceRegistered;
+    assert.equal(sourceRegistration.role, "source");
+    const pairingMessage = await pairingMessagePromise;
+    assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
+    assert.equal(pairingMessage.expiresInSeconds, 600);
+    source.send(JSON.stringify({ type: "source-health", ready: true, checkedAt: new Date().toISOString() }));
+
+    nonOwner = new WebSocket(url);
+    await waitOpen(nonOwner);
+    const anonymousRejected = waitMessage(nonOwner, m => m.type === "error");
+    nonOwner.send(JSON.stringify({ type: "register", role: "client" }));
+    assert.match((await anonymousRejected).error, /pairing code/i);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    nonOwner = null;
+
+    const invalidCodeClient = new WebSocket(url);
+    await waitOpen(invalidCodeClient);
+    const invalidCodeRejected = waitMessage(invalidCodeClient, m => m.type === "error");
+    invalidCodeClient.send(JSON.stringify({ type: "register", role: "client", pairingCode: "NOT-A-VALID-CODE" }));
+    assert.match((await invalidCodeRejected).error, /valid, unexpired pairing code/i);
+    invalidCodeClient.close();
 
     owner = new WebSocket(url);
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
-    owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
-    assert.equal((await ownerRegistered).role, "client");
+    const ownerSourceList = waitMessage(owner, m => m.type === "source-list");
+    owner.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairingMessage.code }));
+    const ownerRegistration = await ownerRegistered;
+    assert.equal(ownerRegistration.role, "client");
+    assert.equal(ownerRegistration.sourceId, sourceRegistration.sourceId);
+    const initialSourceList = await ownerSourceList;
+    assert.equal(initialSourceList.sources.length, 1);
+    assert.equal(initialSourceList.sources[0].internetReady, true);
+    assert.equal(typeof ownerRegistration.accessToken, "string");
+    assert.ok(ownerRegistration.accessToken.length >= 40);
+
+    const reusedCodeClient = new WebSocket(url);
+    await waitOpen(reusedCodeClient);
+    const reusedCodeRejected = waitMessage(reusedCodeClient, m => m.type === "error");
+    reusedCodeClient.send(JSON.stringify({ type: "register", role: "client", pairingCode: pairingMessage.code }));
+    assert.match((await reusedCodeRejected).error, /valid, unexpired pairing code/i);
+    reusedCodeClient.close();
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));
@@ -94,11 +136,15 @@ async function main() {
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;
 
-    nonOwner = new WebSocket(url);
-    await waitOpen(nonOwner);
-    const publicRegistered = waitMessage(nonOwner, m => m.type === "registered");
-    nonOwner.send(JSON.stringify({ type: "register", role: "client" }));
-    assert.equal((await publicRegistered).role, "client");
+    const revokedOwner = waitMessage(owner, m => m.type === "error" && /revoked/i.test(m.error));
+    source.send(JSON.stringify({ type: "revoke-pairings" }));
+    assert.match((await revokedOwner).error, /revoked/i);
+    const revokedClient = new WebSocket(url);
+    await waitOpen(revokedClient);
+    const revokedDenied = waitMessage(revokedClient, m => m.type === "error");
+    revokedClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.match((await revokedDenied).error, /invalid or expired/i);
+    revokedClient.close();
 
     legacy = new WebSocket(url);
     await waitOpen(legacy);
@@ -106,12 +152,77 @@ async function main() {
     legacy.send(JSON.stringify({ type: "register", role: "source", sourceToken: "test-source-secret", sourceId: "legacy-source", sourceName: "Legacy source" }));
     assert.equal((await legacyRegistered).role, "source");
 
+    const enrollment = wss.enrollSource();
+    assert.ok(enrollment.sourceId);
+    assert.ok(enrollment.sourceToken.length >= 40);
+    spoofedEnrollment = new WebSocket(url);
+    await waitOpen(spoofedEnrollment);
+    const spoofRejected = waitMessage(spoofedEnrollment, m => m.type === "error");
+    spoofedEnrollment.send(JSON.stringify({ type: "register", role: "source", sourceToken: enrollment.sourceToken, sourceId: "somebody-elses-id", sourceName: "Spoofed enrolled source" }));
+    assert.match((await spoofRejected).error, /not authorized/i);
+    spoofedEnrollment.close();
+
+    enrolledSource = new WebSocket(url);
+    await waitOpen(enrolledSource);
+    const enrolledRegistered = waitMessage(enrolledSource, m => m.type === "registered");
+    const enrolledCode = waitMessage(enrolledSource, m => m.type === "pairing-code");
+    enrolledSource.send(JSON.stringify({ type: "register", role: "source", sourceToken: enrollment.sourceToken, sourceId: enrollment.sourceId, sourceName: "Per-source credential test" }));
+    assert.equal((await enrolledRegistered).sourceId, enrollment.sourceId);
+    assert.match((await enrolledCode).code, /^[A-F0-9]{12}$/);
+
+    const persistedCredentials = wss.getEnrolledSourceCredentials();
+    assert.equal(persistedCredentials.length, 1);
+    assert.equal(persistedCredentials[0].sourceId, enrollment.sourceId);
+    assert.notEqual(persistedCredentials[0].tokenHash, enrollment.sourceToken);
+    assert.match(persistedCredentials[0].tokenHash, /^[a-f0-9]{64}$/);
+
+    restartedServer = http.createServer();
+    await new Promise(resolve => restartedServer.listen(0, "127.0.0.1", resolve));
+    restartedWss = attachDreamWifiTunnel(restartedServer, {
+      sourceToken: "test-source-secret",
+      enrolledSourceCredentials: persistedCredentials
+    });
+    restartedSource = new WebSocket("ws://127.0.0.1:" + restartedServer.address().port + "/api/dream-wifi/tunnel");
+    await waitOpen(restartedSource);
+    const restoredRegistration = waitMessage(restartedSource, m => m.type === "registered");
+    const restoredPairingCode = waitMessage(restartedSource, m => m.type === "pairing-code");
+    restartedSource.send(JSON.stringify({
+      type: "register", role: "source", sourceToken: enrollment.sourceToken,
+      sourceId: enrollment.sourceId, sourceName: "Restored source"
+    }));
+    assert.equal((await restoredRegistration).sourceId, enrollment.sourceId);
+    assert.match((await restoredPairingCode).code, /^[A-F0-9]{12}$/);
+
+    // Receiver access tokens intentionally remain in memory. After a backend restart,
+    // an old receiver token must be rejected and the user must pair again.
+    restartedOwner = new WebSocket("ws://127.0.0.1:" + restartedServer.address().port + "/api/dream-wifi/tunnel");
+    await waitOpen(restartedOwner);
+    const oldSessionRejected = waitMessage(restartedOwner, m => m.type === "error");
+    restartedOwner.send(JSON.stringify({
+      type: "register", role: "client", accessToken: ownerRegistration.accessToken
+    }));
+    assert.match((await oldSessionRejected).error, /invalid or expired/i);
+    restartedOwner.close();
+
+    failingServer = http.createServer();
+    await new Promise(resolve => failingServer.listen(0, "127.0.0.1", resolve));
+    failingWss = attachDreamWifiTunnel(failingServer, {
+      onEnrollSource: () => false
+    });
+    assert.throws(() => failingWss.enrollSource(), /persistence failed/i);
+    assert.equal(failingWss.getEnrolledSourceCredentials().length, 0,
+      "A source credential must not remain usable when persistence fails.");
+
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {
-    for (const socket of [source, nativeSource, owner, nonOwner, legacy]) {
+    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner]) {
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
     }
     await new Promise(resolve => wss.close(resolve));
+    if (restartedWss) await new Promise(resolve => restartedWss.close(resolve));
+    if (restartedServer) await new Promise(resolve => restartedServer.close(resolve));
+    if (failingWss) await new Promise(resolve => failingWss.close(resolve));
+    if (failingServer) await new Promise(resolve => failingServer.close(resolve));
     await new Promise(resolve => server.close(resolve));
   }
 }

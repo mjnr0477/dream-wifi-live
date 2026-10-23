@@ -52,6 +52,7 @@ async function main() {
       DREAM_WIFI_BIND_HOST: "127.0.0.1",
       DREAM_WIFI_SOURCE_TOKEN: "integration-test-source-token",
       DREAM_WIFI_DATA_DIR: dataDir,
+      DREAM_WIFI_STORAGE_READY: "true",
       NODE_OPTIONS: "--require=" + preload
     },
     stdio: ["ignore", "pipe", "pipe"]
@@ -62,14 +63,16 @@ async function main() {
     const base = "http://127.0.0.1:" + port;
     const healthResponse = await fetch(base + "/healthz", { signal: AbortSignal.timeout(5000) });
     assert.equal(healthResponse.status, 200);
-    assert.deepEqual(await healthResponse.json(), { ok: true, service: "dream-wifi-live", database: false });
+    assert.deepEqual(await healthResponse.json(), { ok: true, service: "dream-wifi-live", database: false, durable_storage_ready: true });
 
     const configResponse = await fetch(base + "/api/dream-wifi/config");
     assert.equal(configResponse.status, 200);
     const config = await configResponse.json();
     assert.equal(config.configured, true);
     assert.equal(config.database, false);
-    assert.equal(config.authentication, "public-client");
+    assert.equal(config.authentication, "one-time-source-pairing");
+    assert.equal(config.source_enrollment, true);
+    assert.equal(config.durable_storage_ready, true);
 
     const missingLocation = await fetch(base + "/api/wifi/sources");
     assert.equal(missingLocation.status, 400);

@@ -1,10 +1,12 @@
 plugins { id "com.android.application" }
 
-def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "").toString().trim().replaceAll("/+$", "")
+def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "").toString().trim()
+while (dreamWifiBaseUrl.endsWith("/")) { dreamWifiBaseUrl = dreamWifiBaseUrl.substring(0, dreamWifiBaseUrl.length() - 1) }
 
 dependencies {
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
+
 android {
     buildFeatures { buildConfig true }
     namespace "com.dreameducation.wifi"

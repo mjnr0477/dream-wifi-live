@@ -132,6 +132,16 @@ public final class MainActivity extends Activity {
         publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
         box.addView(publishSourceButton);
 
+        Button revokePairingsButton = new Button(this);
+        revokePairingsButton.setText("Revoke all receiver pairings");
+        revokePairingsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, DreamVpnService.class);
+            intent.setAction(DreamVpnService.ACTION_REVOKE_PAIRINGS);
+            startService(intent);
+            status.setText("Requested receiver pairing revocation. Source sharing must be running for this to take effect.");
+        });
+        box.addView(revokePairingsButton);
+
         sourceButton = new Button(this);
         sourceButton.setText("Choose Wi-Fi source (automatic)");
         sourceButton.setOnClickListener(v -> showSourcePicker());
@@ -610,7 +620,8 @@ public final class MainActivity extends Activity {
         intent.putExtra(DreamVpnService.EXTRA_SELECTED_SOURCE_ID, selectedSourceId);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);
-        status.setText("Connecting to Dream Tunnel and discovering registered Wi-Fi sources.");
+        connectButton.setEnabled(true);
+        status.setText("Connecting to Dream Tunnel through the paired source. Actual browsing must pass the relay test.");
     }
 
     private String safe(String message) {

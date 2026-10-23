@@ -34,8 +34,10 @@ function saveSourceCredentials(credential) {
     fs.writeFileSync(temp, JSON.stringify(enrolledSourceCredentials), { mode: 0o600 });
     try { fs.chmodSync(temp, 0o600); } catch (_) {}
     fs.renameSync(temp, sourceCredentialsFile);
+    return true;
   } catch (error) {
     console.error("Could not persist source credentials. Configure DREAM_WIFI_DATA_DIR to a writable persistent disk:", error.code || "write_error");
+    return false;
   }
 }
 try {
@@ -76,7 +78,12 @@ app.post("/api/dream-wifi/source-enroll", (req, res) => {
   if (attempt.count >= 5) return res.status(429).json({ success: false, error: "Source enrollment limit reached for this network. Try again later." });
   attempt.count += 1;
   sourceEnrollmentAttempts.set(key, attempt);
-  const enrollment = dreamWifiTunnel.enrollSource();
+  let enrollment;
+  try {
+    enrollment = dreamWifiTunnel.enrollSource();
+  } catch (_) {
+    return res.status(503).json({ success: false, error: "Source enrollment is temporarily unavailable because credential storage failed. Please retry after storage is restored." });
+  }
   res.status(201).json({
     success: true,
     source_id: enrollment.sourceId,

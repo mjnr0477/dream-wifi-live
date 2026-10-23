@@ -2,6 +2,8 @@
 
 Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education and Supabase.
 
+**Public release status: BLOCKED.** The backend CI tests and Android debug APK build have passed, but durable production storage, a production-aligned deployment, and physical-device end-to-end acceptance remain incomplete. See [Public Release Gate](docs/PUBLIC-RELEASE-GATE.md) for the mandatory evidence checklist. Do not publish the debug APK or advertise unrestricted internet/hotspot support as production-ready.
+
 ## Wi-Fi discovery
 - The web app requests the visitor's location and searches a radius up to 300 km.
 - **Public Wi-Fi locations:** queries OpenStreetMap for mapped venues explicitly tagged as offering Wi-Fi, with a short server-side cache and a fallback Overpass endpoint.
@@ -16,7 +18,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 ## Sharing and receiving roles
 - `/share.html` is the source-device setup guide. It explains that a person must run the authorized source agent; opening a link does not activate sharing.
 - `/receive.html` is the browser receiver. It requires a one-time code from the source owner and can run a real HTTP probe through the selected source relay.
-- The native prototype is in `android/dream-wifi-vpn`. Its core UI now uses standalone source enrollment and receiver pairing, with Android `VpnService` and a native TUN-to-SOCKS engine. It has not yet passed a verified build or physical-device acceptance test.
+- The native prototype is in `android/dream-wifi-vpn`. Its core UI uses standalone source enrollment and receiver pairing, with Android `VpnService` and a native TUN-to-SOCKS engine. The Android debug APK build passed in GitHub Actions; physical-device acceptance testing remains outstanding.
 - A source-side DNS/TCP or HTTPS probe is reported separately from relay connection status. Neither is a substitute for an end-to-end receiver traffic test.
 - Downstream hotspot forwarding is not implemented/verified; do not advertise it as working.
 
@@ -43,7 +45,7 @@ Open the hosted site and allow location permission. Public hotspot search sends 
 ```sh
 npm test
 ```
-Passing tests validate query construction and result filtering, not real-world map coverage or end-to-end browsing through a source. Test real HTTP/HTTPS traffic through an authorized source before advertising access.
+Passing tests validate protocol handling and query/result filtering, not real-world map coverage or end-to-end browsing through a source. Test real HTTP/HTTPS traffic through an authorized source before advertising access.
 
 ## Map attribution
 Public hotspot results are based on © OpenStreetMap contributors. Data coverage and accuracy vary by location.
@@ -52,7 +54,7 @@ Public hotspot results are based on © OpenStreetMap contributors. Data coverage
 
 The browser receiver sends an HTTP request through the selected source relay and requires a valid response before reporting a pass. This is stronger than a control-plane ping, but it does not prove HTTPS/TLS through the phone, DNS routing for every app, or unrestricted full-device coverage.
 
-The native Android prototype includes user-approved VPN setup and foreground-service code. The standalone pairing/enrollment flow has been wired into its core path, but the APK build and physical-device tests remain unverified. The release test must cover source/receiver pairing, HTTP and HTTPS browsing, DNS, screen-off behavior, network changes, disconnect/reconnect, and traffic leakage.
+The native Android prototype includes user-approved VPN setup and foreground-service code. The debug APK builds, but source/receiver pairing, HTTP and HTTPS browsing, DNS, screen-off behavior, network changes, disconnect/reconnect, and traffic-leak prevention still require physical-device acceptance tests.
 
 The intended downstream hotspot-forwarding feature is still a release blocker. Android VPN traffic is not automatically forwarded to tethered clients on every device. Do not claim third-device internet sharing until that device's real HTTPS requests pass through the selected source in a physical test.
 

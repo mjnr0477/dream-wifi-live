@@ -46,6 +46,7 @@ assert.match(activity, /Receiver hotspot name:/);
 assert.match(activity, /Hotspot forwarding: Not implemented\/verified/);
 assert.match(activity, /getReceiverWifiName/);
 assert.match(activity, /getReceiverHotspotName/);
+assert.match(activity, /availableSourceIds\.length === 1/);
 assert.match(activity, /DreamWifiCredentialStore\.loadSource/);
 assert.match(activity, /DreamWifiCredentialStore\.saveSource/);
 assert.match(activity, /DreamWifiCredentialStore\.loadReceiver/);

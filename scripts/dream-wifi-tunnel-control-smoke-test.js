@@ -189,10 +189,12 @@ async function main() {
 
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {
-    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment]) {
+    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment, restartedSource]) {
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
     }
     await new Promise(resolve => wss.close(resolve));
+    if (restartedWss) await new Promise(resolve => restartedWss.close(resolve));
+    if (restartedServer) await new Promise(resolve => restartedServer.close(resolve));
     await new Promise(resolve => server.close(resolve));
   }
 }

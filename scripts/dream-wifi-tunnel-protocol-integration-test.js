@@ -169,6 +169,26 @@ async function main() {
     owner.socket.send(JSON.stringify({ type: "udp-close", id: "integration-udp" }));
     await source.next(m => m.type === "udp-close" && m.id === "integration-udp", "forwarded UDP close");
 
+    owner.socket.send(JSON.stringify({
+      type: "tcp-open",
+      id: "invalid-tcp-port",
+      host: "example.com",
+      port: 65536,
+      sourceId: "integration-source"
+    }));
+    const invalidTcp = await owner.next(m => m.type === "tcp-error" && m.id === "invalid-tcp-port", "invalid TCP port rejection");
+    assert.match(invalidTcp.error, /valid public TCP destinations/i);
+
+    owner.socket.send(JSON.stringify({
+      type: "udp-send",
+      id: "invalid-udp-port",
+      host: "time.example.com",
+      port: 65536,
+      data: Buffer.from("invalid").toString("base64")
+    }));
+    const invalidUdp = await owner.next(m => m.type === "udp-error" && m.id === "invalid-udp-port", "invalid UDP port rejection");
+    assert.match(invalidUdp.error, /invalid|destination/i);
+
     const publicClient = connect(url);
     try {
       await waitOpen(publicClient);

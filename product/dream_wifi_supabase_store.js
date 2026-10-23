@@ -1,8 +1,8 @@
 "use strict";
 
 function createDreamWifiSupabaseStore(options = {}) {
-  const url = String(options.url || process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
-  const serviceKey = String(options.serviceKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  const url = String(options.url !== undefined ? options.url : (process.env.SUPABASE_URL || "")).trim().replace(/\/$/, "");
+  const serviceKey = String(options.serviceKey !== undefined ? options.serviceKey : (process.env.SUPABASE_SERVICE_ROLE_KEY || "")).trim();
   const fetchImpl = options.fetch || globalThis.fetch;
   const hasAnyConfig = Boolean(url || serviceKey);
   const configured = Boolean(url && serviceKey);

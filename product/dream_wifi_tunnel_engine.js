@@ -496,7 +496,14 @@ function attachDreamWifiTunnel(server, options = {}) {
     const sourceTokenValue = crypto.randomBytes(32).toString("base64url");
     const credential = { sourceId, tokenHash: hashCredential(sourceTokenValue), createdAt: Date.now() };
     enrolledSourceTokens.set(credential.tokenHash, { sourceId, createdAt: credential.createdAt });
-    if (typeof options.onEnrollSource === "function") options.onEnrollSource(credential);
+    try {
+      if (typeof options.onEnrollSource === "function" && options.onEnrollSource(credential) === false) {
+        throw new Error("Source credential persistence failed.");
+      }
+    } catch (error) {
+      enrolledSourceTokens.delete(credential.tokenHash);
+      throw error;
+    }
     return { sourceId, sourceToken: sourceTokenValue };
   };
   wss.getEnrolledSourceCredentials = () => [...enrolledSourceTokens.entries()].map(([tokenHash, credential]) => ({

@@ -88,18 +88,18 @@ async function main() {
 
     await rejectedPairing(url, "NOT-A-VALID-CODE", "invalid pairing code rejection");
 
-    // Pairing codes remain usable after ten minutes while their source stays online.
     const originalNow = Date.now;
-    let ownerRegistration;
     try {
       Date.now = () => originalNow() + 11 * 60 * 1000;
-      owner = connect(url);
-      await waitOpen(owner);
-      owner.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
-      ownerRegistration = await owner.next(m => m.type === "registered" && m.role === "client", "paired client registration after ten minutes");
+      await rejectedPairing(url, pairing.code, "expired pairing code rejection");
     } finally {
       Date.now = originalNow;
     }
+
+    owner = connect(url);
+    await waitOpen(owner);
+    owner.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
+    const ownerRegistration = await owner.next(m => m.type === "registered" && m.role === "client", "paired client registration");
     assert.equal(ownerRegistration.sourceId, "integration-source");
     assert.ok(ownerRegistration.accessToken.length >= 40);
     const accessToken = ownerRegistration.accessToken;

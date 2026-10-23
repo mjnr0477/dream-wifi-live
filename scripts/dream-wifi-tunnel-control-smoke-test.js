@@ -54,7 +54,8 @@ async function main() {
     assert.equal(sourceRegistration.role, "source");
     const pairingMessage = await pairingMessagePromise;
     assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
-    assert.equal(pairingMessage.expiresInSeconds, 600);
+    assert.equal(pairingMessage.expiresInSeconds, 0, "Pairing codes must not expire on a timer while the source is online.");
+    assert.ok(pairingMessage.expiresAt > Date.now() + 365 * 24 * 60 * 60 * 1000);
     source.send(JSON.stringify({ type: "source-health", ready: true, checkedAt: new Date().toISOString() }));
 
     nonOwner = new WebSocket(url);
@@ -92,6 +93,25 @@ async function main() {
     reusedCodeClient.send(JSON.stringify({ type: "register", role: "client", pairingCode: pairingMessage.code }));
     assert.match((await reusedCodeRejected).error, /valid, unexpired pairing code/i);
     reusedCodeClient.close();
+
+    // A dropped socket can reconnect with the same session token; explicit disconnect revokes it.
+    owner.close();
+    await new Promise(resolve => setTimeout(resolve, 80));
+    const resumedOwner = new WebSocket(url);
+    await waitOpen(resumedOwner);
+    const resumedRegistered = waitMessage(resumedOwner, m => m.type === "registered");
+    resumedOwner.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.equal((await resumedRegistered).role, "client");
+    const disconnectAck = waitMessage(resumedOwner, m => m.type === "disconnected");
+    resumedOwner.send(JSON.stringify({ type: "disconnect" }));
+    await disconnectAck;
+    const disconnectedTokenClient = new WebSocket(url);
+    await waitOpen(disconnectedTokenClient);
+    const disconnectedTokenRejected = waitMessage(disconnectedTokenClient, m => m.type === "error");
+    disconnectedTokenClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.match((await disconnectedTokenRejected).error, /invalid or expired/i);
+    disconnectedTokenClient.close();
+    owner = resumedOwner;
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));

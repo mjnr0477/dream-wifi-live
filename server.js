@@ -13,10 +13,12 @@ const configuredDataDir = String(process.env.DREAM_WIFI_DATA_DIR || "").trim();
 const dataDir = path.resolve(configuredDataDir || path.join(__dirname, "data"));
 // Explicit operator attestation is required before issuing credentials that must survive restarts.
 // The deployment must mount durable storage at DREAM_WIFI_DATA_DIR before setting this flag.
-const durableStorageReady = process.env.DREAM_WIFI_STORAGE_READY === "true" && Boolean(configuredDataDir);
+let durableStorageReady = !supabaseStore.configured && process.env.DREAM_WIFI_STORAGE_READY === "true" && Boolean(configuredDataDir);
 const registryFile = path.join(dataDir, "sources.json");
 const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
+const { createDreamWifiSupabaseStore } = require("./product/dream_wifi_supabase_store");
+const supabaseStore = createDreamWifiSupabaseStore();
 let knownSources = new Map();
 const sourceEnrollmentAttempts = new Map();
 let enrolledSourceCredentials = [];
@@ -72,9 +74,9 @@ function distanceKm(aLat, aLon, bLat, bLon) {
 app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
-app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: true, durable_storage_ready: durableStorageReady, database: false, authentication: "one-time-source-pairing" }));
-app.post("/api/dream-wifi/source-enroll", (req, res) => {
+app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: Boolean(supabaseStore.ready), durable_storage_ready: durableStorageReady }));
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: true, durable_storage_ready: durableStorageReady, database: Boolean(supabaseStore.ready), authentication: "one-time-source-pairing" }));
+app.post("/api/dream-wifi/source-enroll", async (req, res) => {
   if (!durableStorageReady) return res.status(503).json({ success: false, error: "Source enrollment is disabled until durable storage is configured and DREAM_WIFI_STORAGE_READY=true is set by the operator." });
   const now = Date.now();
   const key = String(req.ip || req.socket.remoteAddress || "unknown");
@@ -86,7 +88,7 @@ app.post("/api/dream-wifi/source-enroll", (req, res) => {
   sourceEnrollmentAttempts.set(key, attempt);
   let enrollment;
   try {
-    enrollment = dreamWifiTunnel.enrollSource();
+    enrollment = await dreamWifiTunnel.enrollSourceAsync();
   } catch (_) {
     return res.status(503).json({ success: false, error: "Source enrollment is temporarily unavailable because credential storage failed. Please retry after storage is restored." });
   }
@@ -94,7 +96,7 @@ app.post("/api/dream-wifi/source-enroll", (req, res) => {
     success: true,
     source_id: enrollment.sourceId,
     source_token: enrollment.sourceToken,
-    note: "Keep this source token private. It is scoped to this source; only its SHA-256 hash is persisted. Restart recovery works only when DREAM_WIFI_DATA_DIR points to durable writable storage."
+note: "Keep this source token private. It is scoped to this source; only its SHA-256 hash is persisted. Restart recovery requires verified server-side durable storage."
   });
 });
 app.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length, internet_ready_count: sources.filter(source => source.internetReady === true).length, note: "Relay-connected sources and source-side DNS/TCP reachability are separate signals; neither replaces an end-to-end receiver relay test." }); });
@@ -102,9 +104,9 @@ const server = http.createServer(app);
 const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDreamWifiTunnel(server, {
   sourceToken,
   enrolledSourceCredentials,
-  onEnrollSource: saveSourceCredentials
+  onEnrollSource: credential => supabaseStore.configured ? supabaseStore.saveCredential(credential) : saveSourceCredentials(credential)
 });
-app.get("/api/wifi/sources", (req, res) => {
+app.get("/api/wifi/sources", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);
   const longitude = coordinate(req.query.longitude, -180, 180);
   const radiusKm = Number(req.query.radius_km || 300);
@@ -118,7 +120,13 @@ app.get("/api/wifi/sources", (req, res) => {
     const prior = knownSources.get(source.id) || {};
     knownSources.set(source.id, { id: source.id, name: source.name, latitude: lat, longitude: lon, first_seen: prior.first_seen || now, last_seen: now });
   }
-  saveRegistry();
+  try {
+    if (supabaseStore.ready) await supabaseStore.saveSources([...knownSources.values()]);
+    else saveRegistry();
+  } catch (error) {
+    console.error("Could not persist source directory:", String(error.message || "database_error").slice(0, 180));
+    return res.status(503).json({ success: false, error: "Source directory storage is temporarily unavailable. Please retry shortly." });
+  }
   const liveById = new Map(live.map(source => [source.id, source]));
   const liveIds = new Set(liveById.keys());
   const sources = [...knownSources.values()].map(source => {
@@ -154,4 +162,24 @@ app.get("/api/wifi/hotspots", async (req, res) => {
 app.use(express.static(publicDir));
 app.use((req, res, next) => { if (req.method === "GET" && !req.path.startsWith("/api/")) return res.sendFile(path.join(publicDir, "index.html")); next(); });
 app.use((_req, res) => res.status(404).json({ success: false, error: "Not found." }));
-server.listen(port, process.env.DREAM_WIFI_BIND_HOST || "0.0.0.0", () => console.log("Dream Wi-Fi listening on port " + port + " (standalone source-paired relay)"));
+async function startServer() {
+  if (supabaseStore.configured) {
+    try {
+      const stored = await supabaseStore.initialize();
+      if (!stored.ready) throw new Error("Supabase durable storage did not become ready.");
+      enrolledSourceCredentials = stored.credentials;
+      for (const source of stored.sources) knownSources.set(source.id, source);
+      durableStorageReady = true;
+      console.log("Dream Wi-Fi Supabase durable storage verified.");
+    } catch (error) {
+      console.error("Dream Wi-Fi startup blocked: configured Supabase storage could not be verified:", String(error.message || "database_error").slice(0, 240));
+      process.exitCode = 1;
+      server.close();
+      return;
+    }
+  }
+  server.listen(port, process.env.DREAM_WIFI_BIND_HOST || "0.0.0.0", () => {
+    console.log("Dream Wi-Fi listening on port " + port + (supabaseStore.ready ? " (Supabase durable storage)" : " (standalone source-paired relay)"));
+  });
+}
+startServer();

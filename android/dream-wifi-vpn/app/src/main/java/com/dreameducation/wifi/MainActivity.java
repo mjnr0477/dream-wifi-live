@@ -170,6 +170,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             pendingAccessToken = savedReceiver.accessToken;
+            pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
         }
         connectButton.setEnabled(false);

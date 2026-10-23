@@ -146,6 +146,7 @@ public final class MainActivity extends Activity {
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
+            pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
             sourceButton.setText(selectedSourceLabel());
             status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");

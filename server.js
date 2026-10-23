@@ -8,6 +8,8 @@ const app = express();
 app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 3000);
 const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
+const { createDreamWifiSupabaseStore } = require("./product/dream_wifi_supabase_store");
+const supabaseStore = createDreamWifiSupabaseStore();
 const publicDir = path.join(__dirname, "public");
 const configuredDataDir = String(process.env.DREAM_WIFI_DATA_DIR || "").trim();
 const dataDir = path.resolve(configuredDataDir || path.join(__dirname, "data"));
@@ -17,8 +19,6 @@ let durableStorageReady = !supabaseStore.configured && process.env.DREAM_WIFI_ST
 const registryFile = path.join(dataDir, "sources.json");
 const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
-const { createDreamWifiSupabaseStore } = require("./product/dream_wifi_supabase_store");
-const supabaseStore = createDreamWifiSupabaseStore();
 let knownSources = new Map();
 const sourceEnrollmentAttempts = new Map();
 let enrolledSourceCredentials = [];

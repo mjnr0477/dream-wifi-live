@@ -181,7 +181,28 @@ function attachDreamWifiTunnel(server, options = {}) {
     }
   }
 
+  function originAllowed(request) {
+    const origin = String(request && request.headers && request.headers.origin || "").trim();
+    // Native clients normally omit Origin. When a browser supplies it, require same-origin
+    // or an explicit operator allow-list to reduce cross-site WebSocket abuse.
+    if (!origin) return true;
+    let parsed;
+    try { parsed = new URL(origin); } catch (_) { return false; }
+    if (parsed.origin !== origin) return false;
+    const host = String(request && request.headers && request.headers.host || "").toLowerCase();
+    const forwardedProto = String(request && request.headers && request.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+    const protocol = forwardedProto || (request && request.socket && request.socket.encrypted ? "https" : "http");
+    const sameOrigin = host && origin.toLowerCase() === (protocol + "://" + host);
+    const configured = String(process.env.DREAM_WIFI_ALLOWED_ORIGINS || "")
+      .split(",").map(value => value.trim()).filter(Boolean);
+    return Boolean(sameOrigin || configured.includes(origin));
+  }
+
   wss.on("connection", (socket, request) => {
+    if (!originAllowed(request)) {
+      reject(socket, "WebSocket origin is not allowed.");
+      return;
+    }
     const requestPath = String(request && request.url || "").split("?")[0];
     if (requestPath !== "/api/dream-wifi/tunnel" && requestPath !== "/api/dream-education/dream-wifi/tunnel") {
       socket.close(1008, "Unknown Dream Wi-Fi WebSocket path");

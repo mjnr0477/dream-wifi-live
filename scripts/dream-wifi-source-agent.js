@@ -195,7 +195,7 @@ async function openStream(message) {
   const id = message.id;
   const host = typeof message.host === "string" ? message.host.trim() : "";
   const port = Number(message.port);
-  if (!validId(id) || !host || host.length > 253 || ![80, 443].includes(port) || streams.has(id)) {
+  if (!validId(id) || !host || host.length > 253 || (!Number.isInteger(port) || port < 1 || port > 65535) || streams.has(id)) {
     send({ type: "tcp-error", id: validId(id) ? id : "", error: "Invalid or unsupported TCP destination." });
     return;
   }

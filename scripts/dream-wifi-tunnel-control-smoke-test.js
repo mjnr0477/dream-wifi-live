@@ -36,7 +36,7 @@ async function main() {
     sourceToken: "test-source-secret",
   });
 
-  const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
+  const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
   let source, owner, nonOwner, legacy, nativeSource;
   try {
     source = new WebSocket(url);

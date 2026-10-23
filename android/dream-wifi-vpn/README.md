@@ -26,6 +26,28 @@ Before public release, test using at least a source Android phone on the authori
 7. Configure durable server storage and validate source credential recovery and session expiry/revocation before production use.
 8. Review privacy disclosures, location consent, abuse/rate limiting, logging, and release signing before distribution.
 
+## Signed release build
+
+The repository includes a manually triggered signed APK/AAB workflow. It intentionally fails before building if signing secrets are not configured. Never commit the keystore or passwords.
+
+1. Create and keep a release keystore in a secure location that you control:
+
+   ```sh
+   keytool -genkeypair -v -keystore dream-wifi-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias dream-wifi-release
+   base64 < dream-wifi-release.jks | tr -d '\\n' > dream-wifi-release.jks.base64
+   ```
+
+2. In GitHub repository **Settings → Secrets and variables → Actions**, add these repository secrets:
+   - `ANDROID_KEYSTORE_BASE64`: contents of the base64 file
+   - `ANDROID_KEYSTORE_PASSWORD`: keystore password
+   - `ANDROID_KEY_ALIAS`: `dream-wifi-release` (or the alias you chose)
+   - `ANDROID_KEY_PASSWORD`: key password
+
+3. Add the repository variable `DREAM_WIFI_BASE_URL` with the production HTTPS URL, for example `https://dream-wifi-live.onrender.com`.
+4. Open **Actions → Dream Wi-Fi signed Android release → Run workflow**. The workflow builds a signed APK and AAB and publishes SHA-256 checksums as an artifact.
+
+Back up the keystore securely: losing it can prevent updates to the same Android app identity. Do not share the keystore or secrets in chat, issues, or commits. A signed artifact is not release approval; physical VPN, traffic-leak, background, and third-phone hotspot tests must still pass.
+
 ## Configure the standalone service host
 
 Build with the deployed Dream Wi-Fi base URL:

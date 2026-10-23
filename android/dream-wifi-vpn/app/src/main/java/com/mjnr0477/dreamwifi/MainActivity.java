@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.VpnService;
+import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -41,6 +42,7 @@ public final class MainActivity extends Activity {
     private Button connectButton;
     private Button sourceButton;
     private TextView status;
+    private TextView networkInfo;
     private String[] availableSourceIds = new String[0];
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
@@ -51,6 +53,7 @@ public final class MainActivity extends Activity {
     private Double pendingSourceLatitude;
     private Double pendingSourceLongitude;
     private boolean statusReceiverRegistered = false;
+    private boolean networkReceiverRegistered = false;
     private WifiManager wifiManager;
     private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
@@ -60,7 +63,13 @@ public final class MainActivity extends Activity {
                 availableSourceIds = ids == null ? new String[0] : ids;
                 availableSourceNames = names == null ? new String[0] : names;
                 if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                refreshNetworkInfo();
             } else if (status != null) status.setText(intent.getStringExtra("message"));
+        }
+    };
+    private final BroadcastReceiver networkReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            refreshNetworkInfo();
         }
     };
 
@@ -115,6 +124,10 @@ public final class MainActivity extends Activity {
         box.addView(sourceButton);
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        networkInfo = new TextView(this);
+        networkInfo.setTextSize(13);
+        networkInfo.setPadding(0, 12, 0, 12);
+        box.addView(networkInfo);
 
         Button portalButton = new Button(this);
         portalButton.setText("Open Quant Wi-Fi portal");
@@ -143,6 +156,7 @@ public final class MainActivity extends Activity {
         status.setPadding(0, 16, 0, 0);
         box.addView(status);
         setContentView(box);
+        refreshNetworkInfo();
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
@@ -257,6 +271,61 @@ public final class MainActivity extends Activity {
         return best;
     }
 
+    private void refreshNetworkInfo() {
+        if (networkInfo == null) return;
+        String remote = selectedSourceLabel();
+        if ("Choose Wi-Fi source (automatic)".equals(remote)) {
+            remote = "Automatic selection; no specific remote source selected";
+        } else if ("Wi-Fi source selected".equals(remote)) {
+            remote = "Selected source name is currently unavailable";
+        }
+        networkInfo.setText(
+                "Network details\n"
+                + "Remote source network: " + remote + "\n"
+                + "Receiver local Wi-Fi: " + getReceiverWifiName() + "\n"
+                + "Receiver hotspot name: " + getReceiverHotspotName() + "\n"
+                + "Hotspot forwarding: Not implemented/verified. A receiver VPN does not automatically route a third device's traffic."
+        );
+    }
+
+    private String getReceiverWifiName() {
+        try {
+            if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wifiManager == null) return "Unavailable on this device";
+            android.net.wifi.WifiInfo info = wifiManager.getConnectionInfo();
+            String ssid = info == null ? null : info.getSSID();
+            if (ssid == null || ssid.trim().isEmpty() || "<unknown ssid>".equalsIgnoreCase(ssid.trim())) {
+                return "Unavailable (Android permission or device restriction)";
+            }
+            ssid = ssid.trim();
+            if (ssid.length() >= 2 && ssid.startsWith("\"") && ssid.endsWith("\"")) {
+                ssid = ssid.substring(1, ssid.length() - 1);
+            }
+            return ssid;
+        } catch (Exception unavailable) {
+            return "Unavailable (Android permission or device restriction)";
+        }
+    }
+
+    private String getReceiverHotspotName() {
+        try {
+            if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wifiManager == null) return "Not exposed to ordinary apps";
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.net.wifi.SoftApConfiguration config = wifiManager.getSoftApConfiguration();
+                if (config != null && config.getSsid() != null && !config.getSsid().trim().isEmpty()) {
+                    return config.getSsid();
+                }
+            } else {
+                android.net.wifi.WifiConfiguration config = wifiManager.getWifiApConfiguration();
+                if (config != null && config.SSID != null && !config.SSID.trim().isEmpty()) return config.SSID;
+            }
+        } catch (Exception restricted) {
+            // Android intentionally restricts hotspot configuration access for ordinary apps on many versions.
+        }
+        return "Not exposed to ordinary apps on this Android version";
+    }
+
     private String selectedSourceLabel() {
         if (selectedSourceId.isEmpty()) return "Choose Wi-Fi source (automatic)";
         for (int i = 0; i < availableSourceIds.length; i++) {
@@ -276,6 +345,7 @@ public final class MainActivity extends Activity {
                 .setItems(choices, (dialog, which) -> {
                     selectedSourceId = which == 0 ? "" : availableSourceIds[which - 1];
                     if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                    refreshNetworkInfo();
                     Intent intent = new Intent(this, DreamVpnService.class);
                     intent.setAction(DreamVpnService.ACTION_SELECT_SOURCE);
                     intent.putExtra(DreamVpnService.EXTRA_SELECTED_SOURCE_ID, selectedSourceId);
@@ -394,12 +464,25 @@ public final class MainActivity extends Activity {
             else registerReceiver(statusReceiver, filter);
             statusReceiverRegistered = true;
         }
+        if (!networkReceiverRegistered) {
+            IntentFilter networkFilter = new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+            networkFilter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+            networkFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(networkReceiver, networkFilter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(networkReceiver, networkFilter);
+            networkReceiverRegistered = true;
+        }
+        refreshNetworkInfo();
     }
 
     @Override protected void onPause() {
         if (statusReceiverRegistered) {
             unregisterReceiver(statusReceiver);
             statusReceiverRegistered = false;
+        }
+        if (networkReceiverRegistered) {
+            unregisterReceiver(networkReceiver);
+            networkReceiverRegistered = false;
         }
         super.onPause();
     }

@@ -1,0 +1,80 @@
+name: Dream Wi-Fi signed Android release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Android architecture and credential-storage smoke test
+        run: node scripts/dream-wifi-android-vpn-smoke-test.js
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK and NDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Verify signing secrets and prepare private keystore file
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          case "$DREAM_WIFI_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::DREAM_WIFI_BASE_URL must use HTTPS."; exit 1 ;;
+          esac
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/dream-wifi-release.jks"
+          test -s "$RUNNER_TEMP/dream-wifi-release.jks"
+          chmod 600 "$RUNNER_TEMP/dream-wifi-release.jks"
+      - name: Fetch pinned upstream TUN-to-SOCKS engine
+        working-directory: android/dream-wifi-vpn/app
+        run: |
+          git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git
+          cd hev-socks5-tunnel
+          git checkout 9b2c2320b26046b307abd6ddb5f102b2ccd1d4a4
+          git submodule update --init --recursive
+          sed -i 's/#define PKGNAME hev\/htproxy/#define PKGNAME com\/dreameducation\/wifi/' src/hev-jni.c
+          sed -i 's/#define CLSNAME TProxyService/#define CLSNAME DreamVpnService/' src/hev-jni.c
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build signed release APK and Android App Bundle
+        working-directory: android/dream-wifi-vpn
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/dream-wifi-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="$DREAM_WIFI_BASE_URL" :app:assembleRelease :app:bundleRelease
+      - name: Generate release checksums
+        run: |
+          sha256sum \
+            android/dream-wifi-vpn/app/build/outputs/apk/release/app-release.apk \
+            android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab \
+            > android-release-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dream-wifi-signed-release
+          path: |
+            android/dream-wifi-vpn/app/build/outputs/apk/release/app-release.apk
+            android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab
+            android-release-sha256.txt
+          if-no-files-found: error

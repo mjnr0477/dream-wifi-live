@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const express = require("express");
 const app = express();
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 3000);
 const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
 const publicDir = path.join(__dirname, "public");
@@ -12,6 +13,7 @@ const dataDir = path.resolve(process.env.DREAM_WIFI_DATA_DIR || path.join(__dirn
 const registryFile = path.join(dataDir, "sources.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
 let knownSources = new Map();
+const sourceEnrollmentAttempts = new Map();
 try {
   const saved = JSON.parse(fs.readFileSync(registryFile, "utf8"));
   if (Array.isArray(saved)) for (const source of saved) if (source && source.id) knownSources.set(source.id, source);
@@ -40,7 +42,24 @@ app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), database: false, authentication: "source-pairing" }));
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: true, database: false, authentication: "one-time-source-pairing" }));
+app.post("/api/dream-wifi/source-enroll", (req, res) => {
+  const now = Date.now();
+  const key = String(req.ip || req.socket.remoteAddress || "unknown");
+  for (const [ip, attempt] of sourceEnrollmentAttempts.entries()) if (attempt.resetAt <= now) sourceEnrollmentAttempts.delete(ip);
+  const attempt = sourceEnrollmentAttempts.get(key) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+  if (attempt.resetAt <= now) { attempt.count = 0; attempt.resetAt = now + 60 * 60 * 1000; }
+  if (attempt.count >= 5) return res.status(429).json({ success: false, error: "Source enrollment limit reached for this network. Try again later." });
+  attempt.count += 1;
+  sourceEnrollmentAttempts.set(key, attempt);
+  const enrollment = dreamWifiTunnel.enrollSource();
+  res.status(201).json({
+    success: true,
+    source_id: enrollment.sourceId,
+    source_token: enrollment.sourceToken,
+    note: "Keep this source token private. It is scoped to this source and held in the running service's memory; service restart recovery is not yet implemented."
+  });
+});
 app.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length, internet_ready_count: sources.filter(source => source.internetReady === true).length, note: "Relay-connected sources and source-side DNS/TCP reachability are separate signals; neither replaces an end-to-end receiver relay test." }); });
 const server = http.createServer(app);
 const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDreamWifiTunnel(server, { sourceToken });

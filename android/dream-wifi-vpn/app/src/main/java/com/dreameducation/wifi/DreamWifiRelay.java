@@ -41,7 +41,7 @@ import okhttp3.WebSocketListener;
  */
 final class DreamWifiRelay {
     static final String BASE_URL = BuildConfig.DREAM_WIFI_BASE_URL;
-    static final String TUNNEL_URL = BASE_URL.isEmpty() ? "" : BASE_URL.replaceFirst("^https://", "wss://").replaceFirst("^http://", "ws://") + "/api/dream-education/dream-wifi/tunnel";
+    static final String TUNNEL_URL = BASE_URL.isEmpty() ? "" : BASE_URL.replaceFirst("^https://", "wss://").replaceFirst("^http://", "ws://") + "/api/dream-wifi/tunnel";
     static final int LOCAL_PROXY_PORT = 1081;
     private static final int MAX_CHUNK = 12 * 1024;
     private static final int MAX_UDP_BYTES = 8192;
@@ -70,11 +70,12 @@ final class DreamWifiRelay {
     private final AtomicBoolean sessionRefreshRunning = new AtomicBoolean(false);
     private final AtomicBoolean probeInProgress = new AtomicBoolean(false);
 
-    private volatile String accessToken;
-    private volatile String refreshToken;
+    private volatile String accessToken = "";
+    private volatile String refreshToken = "";
     private volatile String sourceTicket;
+    private volatile String pairingCode;
     private volatile String selectedSourceId = "";
-    private final String sourceId = "android-" + UUID.randomUUID().toString().replace("-", "");
+    private final String sourceId;
     private volatile WebSocket ownerSocket;
     private volatile WebSocket sourceSocket;
     private volatile boolean ownerReady;
@@ -86,11 +87,12 @@ final class DreamWifiRelay {
     private volatile String activeProbeId;
     private volatile StringBuilder activeProbeResponse;
 
-    DreamWifiRelay(String accessToken, String refreshToken, String sourceTicket,
+    DreamWifiRelay(String pairingCode, String sourceToken, String sourceId,
                    boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName, Listener listener) {
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.sourceTicket = sourceTicket;
+        this.pairingCode = pairingCode == null ? "" : pairingCode.trim().toUpperCase(java.util.Locale.ROOT);
+        this.sourceTicket = sourceToken == null ? "" : sourceToken;
+        this.sourceId = sourceId == null || sourceId.trim().isEmpty()
+                ? "android-" + UUID.randomUUID().toString().replace("-", "") : sourceId.trim();
         this.sourceOnly = sourceOnly;
         this.sourceNetwork = sourceNetwork;
         this.controlNetwork = controlNetwork;
@@ -115,18 +117,9 @@ final class DreamWifiRelay {
         if (!sourceOnly) {
             workers.execute(this::serveSocks);
             connectOwner();
+        } else {
+            connectSource();
         }
-        connectSource();
-        scheduler.scheduleAtFixedRate(() -> workers.execute(this::renewOwnerSession), 40, 40, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(() -> workers.execute(() -> {
-            if (!running.get()) return;
-            renewSourceTicket();
-            WebSocket current = sourceSocket;
-            if (current != null) {
-                sourceReady = false;
-                current.close(1000, "source ticket rotation");
-            }
-        }), 10, 10, TimeUnit.HOURS);
         status(sourceOnly
                 ? controlNetwork == null
                     ? "No separate validated cellular route found. If Quant blocks internet before payment, activate the package locally first."
@@ -272,13 +265,19 @@ final class DreamWifiRelay {
 
     private void connectOwner() {
         if (!running.get()) return;
+        if (accessToken.isEmpty() && pairingCode.isEmpty()) {
+            status("No valid pairing credential. Disconnect and enter a fresh source pairing code.");
+            return;
+        }
         Request request = new Request.Builder().url(TUNNEL_URL).build();
         ownerSocket = http.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket webSocket, Response response) {
                 if (!running.get()) { webSocket.close(1000, "stopped"); return; }
                 ownerSocket = webSocket;
-                webSocket.send(new SafeJson().putSafe("type", "register")
-                        .putSafe("role", "owner").putSafe("accessToken", accessToken).toString());
+                SafeJson registration = new SafeJson().putSafe("type", "register").putSafe("role", "client");
+                if (!accessToken.isEmpty()) registration.putSafe("accessToken", accessToken);
+                else registration.putSafe("pairingCode", pairingCode);
+                webSocket.send(registration.toString());
                 status("Authenticating owner control channel…");
             }
             @Override public void onMessage(WebSocket webSocket, String text) {
@@ -286,10 +285,14 @@ final class DreamWifiRelay {
                 JSONObject message;
                 try { message = new JSONObject(text); } catch (Exception ignored) { return; }
                 String type = message.optString("type", "");
-                if ("registered".equals(type) && "owner".equals(message.optString("role"))) {
+                if ("registered".equals(type) && ("client".equals(message.optString("role")) || "owner".equals(message.optString("role")))) {
+                    accessToken = message.optString("accessToken", accessToken);
+                    pairingCode = "";
+                    String pairedSourceId = message.optString("sourceId", "");
+                    if (selectedSourceId.isEmpty() && !pairedSourceId.isEmpty()) selectedSourceId = pairedSourceId;
                     ownerReady = true;
                     ownerRetrySeconds = 3;
-                    status("Owner authenticated; discovering registered Wi-Fi sources…");
+                    status("Receiver paired securely; checking the selected source and public internet…");
                     notifyReadyIfPossible();
                 } else if ("tcp-opened".equals(type)) {
                     String id = message.optString("id", "");
@@ -361,10 +364,8 @@ final class DreamWifiRelay {
                 } else if ("error".equals(type)) {
                     String reason = message.optString("error", "authorization failed");
                     status("Owner channel rejected: " + reason);
-                    if (reason.toLowerCase().contains("owner access") || reason.toLowerCase().contains("authentication failed")) {
-                        workers.execute(DreamWifiRelay.this::renewOwnerSession);
-                    }
-                    webSocket.close(1008, "owner authorization rejected");
+                    if (accessToken.isEmpty()) pairingCode = "";
+                    webSocket.close(1008, "receiver authorization rejected");
                 }
             }
             @Override public void onClosed(WebSocket webSocket, int code, String reason) {
@@ -389,7 +390,7 @@ final class DreamWifiRelay {
     }
 
     private void connectSource() {
-        if (!running.get()) return;
+        if (!running.get() || sourceTicket == null || sourceTicket.isEmpty()) return;
         Request request = new Request.Builder().url(TUNNEL_URL).build();
         sourceSocket = http.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket webSocket, Response response) {
@@ -431,9 +432,7 @@ final class DreamWifiRelay {
                 } else if ("error".equals(type)) {
                     String reason = message.optString("error", "authorization failed");
                     status("Source channel rejected: " + reason);
-                    if (reason.toLowerCase().contains("not authorized") || reason.toLowerCase().contains("not configured")) {
-                        workers.execute(DreamWifiRelay.this::renewSourceTicket);
-                    }
+                    if (reason.toLowerCase().contains("not authorized") || reason.toLowerCase().contains("not configured")) sourceTicket = "";
                     webSocket.close(1008, "source authorization rejected");
                 }
             }
@@ -459,7 +458,7 @@ final class DreamWifiRelay {
     }
 
     private void scheduleOwnerReconnect() {
-        if (!running.get() || !ownerRetryScheduled.compareAndSet(false, true)) return;
+        if (!running.get() || (accessToken.isEmpty() && pairingCode.isEmpty()) || !ownerRetryScheduled.compareAndSet(false, true)) return;
         int delay = ownerRetrySeconds;
         ownerRetrySeconds = Math.min(ownerRetrySeconds * 2, 60);
         scheduler.schedule(() -> {
@@ -469,7 +468,7 @@ final class DreamWifiRelay {
     }
 
     private void scheduleSourceReconnect() {
-        if (!running.get() || !sourceRetryScheduled.compareAndSet(false, true)) return;
+        if (!running.get() || sourceTicket == null || sourceTicket.isEmpty() || !sourceRetryScheduled.compareAndSet(false, true)) return;
         int delay = sourceRetrySeconds;
         sourceRetrySeconds = Math.min(sourceRetrySeconds * 2, 60);
         scheduler.schedule(() -> {

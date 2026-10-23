@@ -69,12 +69,15 @@ This document records the baseline and is not a declaration that Dream Wi-Fi is 
 The following incremental changes were added after the initial inspection:
 
 - Receiver registration now requires a one-time pairing code or a valid scoped session token; anonymous registration is rejected.
+- `POST /api/dream-wifi/source-enroll` now issues a random source ID and unique source token, with an in-memory per-IP enrollment limit.
+- The existing Android `VpnService` prototype was adapted so its core receiver path accepts a standalone pairing code and its source path obtains standalone enrollment credentials; the core VPN flow no longer calls Dream Education login or source-ticket endpoints.
 - The source connector generates a random 12-hex-character pairing code with a 10-minute expiry.
 - Successful pairing issues a random source-scoped session token with a 24-hour expiry. Tokens are stored server-side as SHA-256 hashes.
 - Receiver source listings and relay requests are restricted to the paired source ID.
 - Source-side terminal command `revoke` sends a revocation request that invalidates all receiver pairings for that source and closes connected paired sessions.
 - The receiver page now presents a pairing-code input and stores its session token in tab-scoped `sessionStorage`.
-- The source connector now probes DNS plus TCP/443 reachability to a public test host every 60 seconds and reports this separately from WebSocket/relay presence; the tracker and receiver UI distinguish the two signals.
+- The source connector and native source mode now probe public DNS/TCP or HTTPS reachability periodically and report this separately from WebSocket/relay presence; the tracker and receiver UI distinguish the signals.
+- The native source UI displays its one-time receiver pairing code and exposes a control to revoke all receiver pairings.
 - New clients use `/api/dream-wifi/tunnel`; the old path remains accepted temporarily for existing source connector compatibility.
 - Control-plane, protocol, and multi-source test cases were revised to cover pairing, anonymous rejection, one-time code use, source scoping, and revocation.
 - Existing repository GitHub Actions verification and Android build workflows were identified; this branch did not add a duplicate workflow.
@@ -88,7 +91,7 @@ The following incremental changes were added after the initial inspection:
 
 ## Remaining security and product work
 
-- Source enrollment still uses the existing shared server-side source token. A public multi-user release needs per-source enrollment credentials and a reviewed ownership model, not just source-scoped receiver pairing.
-- Pairing records and session credentials are held in memory and are lost on service restart. Persistent, revocable session handling and restart recovery must be designed before production.
+- New native source enrollment uses a unique per-source token, while the legacy Node connector still supports the shared server-side source token. The new token registry is currently in memory and is lost on service restart; persistent storage, token revocation/rotation, and a reviewed ownership model remain release blockers.
+- Pairing records, source enrollment credentials, and receiver sessions are held in memory and are lost on service restart. Persistent, revocable session handling and restart recovery must be designed before production.
 - Browser HTTP probing remains a narrow relay test and does not demonstrate HTTPS end-to-end, DNS routing for phone apps, full-device VPN operation, or hotspot forwarding.
 - Standalone integration of the Android prototype, background operation, tracker radius, live deployment, and physical-device acceptance checks remain release blockers.

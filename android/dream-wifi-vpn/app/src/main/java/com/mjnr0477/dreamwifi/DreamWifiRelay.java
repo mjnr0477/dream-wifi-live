@@ -911,6 +911,14 @@ final class DreamWifiRelay {
         return clean.substring(0, Math.min(180, clean.length()));
     }
 
+    void disconnectReceiver() {
+        WebSocket owner = ownerSocket;
+        if (sourceOnly || owner == null || accessToken.isEmpty()) return;
+        try {
+            owner.send(new SafeJson().putSafe("type", "disconnect").toString());
+        } catch (Exception ignored) {}
+    }
+
     void stop() {
         if (!running.compareAndSet(true, false)) return;
         readyNotified.set(false);

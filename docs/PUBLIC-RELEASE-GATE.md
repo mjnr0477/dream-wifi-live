@@ -13,7 +13,7 @@
 
 ## 2. Durable production operations
 
-- [ ] Configure a durable writable data store for source credential hashes and source directory records. Do not assume a container filesystem is durable across deploys/restarts.
+- [ ] Configure the approved Supabase URL and server-only service-role key in the deployment environment; verify the app startup check succeeds and the new source credentials/source directory survive a restart. Do not assume a container filesystem is durable across deploys/restarts.
 - [ ] Add durable persistence/recovery for receiver pairings or document and safely enforce re-pairing after restart.
 - [ ] Test server restart, redeploy, storage failure, and recovery without accidentally accepting stale or revoked credentials.
 - [ ] Verify rate limits work across multiple instances/restarts; current in-memory limits are per-process and are not production-wide.
@@ -51,6 +51,6 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 - The public hotspot lookup tries five Overpass endpoints. Backend tests pass, but this branch has not been deployed to Render and the two added endpoints have not been verified against the live service.
 - Render production remains on the free plan, tracks `main`, and has no configured persistent disk. The Render workspace currently has no Postgres or Key Value instance available for Dream Wi-Fi.
 - The connected Supabase account has an active project named `Dream education`, but no dedicated Dream Wi-Fi project. Do not reuse or modify the Dream Education project; keep the products separate.
-- Durable production storage remains unresolved. Before enabling public source enrollment, provision an explicitly approved Dream Wi-Fi-only durable store or persistent disk, configure the service to use it, and verify restart recovery. No paid infrastructure or production deployment change has been made.
+- Supabase project `Mariona` (`lzmrvalonsxtapigtjcx`) now has the two RLS-protected Dream Wi-Fi storage tables, and the server-side Supabase adapter has been added on the working branch. The application integration has not yet passed the complete CI suite or been configured/verified on Render. Do not enable public source enrollment until tests pass, the server-only credentials are configured securely, and restart recovery is demonstrated. No production deployment change has been made.
 - No physical-device end-to-end acceptance tests have been completed.
 - Current tunnel limits and the unverified downstream-hotspot behavior remain release blockers. Do not advertise unrestricted internet sharing or third-phone hotspot forwarding until verified on supported devices.

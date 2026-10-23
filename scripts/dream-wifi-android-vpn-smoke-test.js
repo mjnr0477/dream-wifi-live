@@ -40,7 +40,7 @@ assert.match(credentialStore, /AES\/GCM\/NoPadding/);
 assert.match(credentialStore, /setRandomizedEncryptionRequired\(true\)/);
 assert.match(nativeRelay, /LOCAL_PROXY_PORT = 1081/);
 assert.match(nativeRelay, /putSafe\("role", "client"\)/);
-assert.match(nativeRelay, /putSafe\("role"\)\.putSafe\("source"\)/);
+assert.match(nativeRelay, /putSafe\("role", "source"\)/);
 assert.match(nativeRelay, /tcp-open/);
 assert.match(nativeRelay, /udp-send/);
 assert.match(nativeRelay, /port != 53/);

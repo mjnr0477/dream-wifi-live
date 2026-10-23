@@ -6,6 +6,9 @@
 
 - [x] Backend syntax and automated smoke/integration tests pass in GitHub Actions on the working branch.
 - [x] Android debug APK builds in GitHub Actions.
+- [x] Add public privacy, acceptable-use, and support/abuse-reporting pages, link them from all user-facing screens, and test their disclosures/navigation in CI. Owner/legal review and confirmation of a private privacy contact channel remain required before public release.
+- [x] Harden public destination IP filtering for the Node source relay and native Android relay, including reserved IPv4/IPv6 ranges, with automated address-classification tests.
+- [x] Add a live production smoke workflow to verify health, durable-storage readiness, security headers, and policy-page delivery after main is deployed. This workflow has not yet run against the new policy-page commit.
 - [ ] Run backend tests against the exact commit selected for release.
 - [ ] Build a signed release APK/AAB from the exact commit selected for release.
 - [ ] Verify release signing, package ID/version, permissions, dependency licenses, and artifact checksum.

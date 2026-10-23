@@ -10,6 +10,7 @@ const sourceRoot = path.join(android, "app", "src", "main", "java", "com", "drea
 const read = file => fs.readFileSync(path.join(repository, file), "utf8");
 
 const manifest = read("android/dream-wifi-vpn/app/src/main/AndroidManifest.xml");
+const androidBuild = read("android/dream-wifi-vpn/app/build.gradle");
 const activity = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/MainActivity.java");
 const service = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/DreamVpnService.java");
 const nativeRelay = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/DreamWifiRelay.java");
@@ -21,6 +22,11 @@ const server = read("server.js");
 const tunnel = read("product/dream_wifi_tunnel_engine.js");
 
 assert.ok(fs.existsSync(sourceRoot), "Native Android source package must exist.");
+assert.match(androidBuild, /namespace "com\\.dreamwifi\\.android"/);
+assert.match(androidBuild, /applicationId "com\\.dreamwifi\\.android"/);
+assert.doesNotMatch(androidBuild, /com\\.dreameducation\\.wifi/);
+assert.match(activity, /com\\.dreamwifi\\.android\\.STATUS/);
+assert.doesNotMatch(service, /com\\.dreameducation\\.wifi\\./);
 assert.match(manifest, /android\.net\.VpnService/);
 assert.match(manifest, /BIND_VPN_SERVICE/);
 assert.match(manifest, /FOREGROUND_SERVICE/);

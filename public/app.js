@@ -104,7 +104,7 @@
       const item = document.createElement("article"); item.className = "tile";
       const title = document.createElement("strong"); title.textContent = source.name;
       const details = document.createElement("p"); details.className = "muted";
-      details.textContent = source.distance_km + " km away · " + (source.connected ? "Online" : "Offline — not connectable now") + " · Last seen " + new Date(source.last_seen).toLocaleString();
+      details.textContent = source.distance_km + " km away · " + (source.connected ? "Relay connected" : "Offline — not connectable now") + (source.internet_ready === true ? " · Source internet probe passed" : source.internet_ready === false ? " · Source internet probe failed" : " · Source internet not verified") + " · Last seen " + new Date(source.last_seen).toLocaleString();
       item.append(title, details); $("sources").appendChild(item);
     }
   }

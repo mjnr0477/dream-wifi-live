@@ -24,6 +24,9 @@ assert.match(terms, /own it or have explicit permission/i);
 assert.match(terms, /third-device hotspot forwarding/i);
 assert.match(terms, /have not completed physical acceptance testing/i);
 assert.match(terms, /ICMP/i);
+assert.match(index, /Prototype testing notice/);
+assert.match(receive, /Native Android VPN routing/);
+assert.match(receive, /not implemented or verified/);
 assert.match(support, /GitHub issues are public/i);
 assert.match(support, /pairing codes/i);
 

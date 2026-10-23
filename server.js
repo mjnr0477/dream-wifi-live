@@ -81,7 +81,7 @@ app.post("/api/dream-wifi/source-enroll", (req, res) => {
     success: true,
     source_id: enrollment.sourceId,
     source_token: enrollment.sourceToken,
-    note: "Keep this source token private. It is scoped to this source and held in the running service's memory; service restart recovery is not yet implemented."
+    note: "Keep this source token private. It is scoped to this source; only its SHA-256 hash is persisted. Restart recovery works only when DREAM_WIFI_DATA_DIR points to durable writable storage."
   });
 });
 app.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length, internet_ready_count: sources.filter(source => source.internetReady === true).length, note: "Relay-connected sources and source-side DNS/TCP reachability are separate signals; neither replaces an end-to-end receiver relay test." }); });

@@ -15,9 +15,6 @@ const MAX_WS_BUFFERED_BYTES = 1024 * 1024;
 const PING_TIMEOUT_MS = 5000;
 const PAIRING_CODE_TTL_MS = 10 * 60 * 1000;
 const PAIRING_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-const pairingCodes = new Map();
-const pairingTokens = new Map();
-const pairingAttempts = new Map();
 
 function safeEqual(left, right) {
   const a = Buffer.from(String(left || ""), "utf8");
@@ -43,6 +40,9 @@ function attachDreamWifiTunnel(server, options = {}) {
   const sourceToken = String(options.sourceToken || "");
   const owners = new Set();
   const sources = new Map();
+  const pairingCodes = new Map();
+  const pairingTokens = new Map();
+  const pairingAttempts = new Map();
   const pendingPings = new Map();
   const streams = new Map();
   const udpAssociations = new Map();
@@ -99,12 +99,17 @@ function attachDreamWifiTunnel(server, options = {}) {
     pairingCodes.set(hashCredential(code), { sourceId: sourceSocket.dreamSourceId, expiresAt });
     send(sourceSocket, { type: "pairing-code", code, expiresAt, expiresInSeconds: PAIRING_CODE_TTL_MS / 1000 });
   }
-  function registerOwner(socket, sourceId, accessToken) {
+  function registerOwner(socket, sourceId, accessToken, expiresAt) {
     socket.dreamRole = "owner";
     socket.dreamSourceId = sourceId;
     socket.dreamOwnerId = crypto.randomUUID();
+    socket.dreamPairingExpiresAt = expiresAt;
+    socket.dreamPairingTimer = setTimeout(() => {
+      if (socket.readyState === WebSocket.OPEN) reject(socket, "Pairing session expired. Pair again with a fresh source code.");
+    }, Math.max(0, expiresAt - Date.now()));
+    if (typeof socket.dreamPairingTimer.unref === "function") socket.dreamPairingTimer.unref();
     owners.add(socket);
-    send(socket, { type: "registered", role: "client", sourceId, accessToken });
+    send(socket, { type: "registered", role: "client", sourceId, accessToken, expiresAt });
     send(socket, { type: "source-state", connected: sourceListForOwner(socket).length > 0 });
     send(socket, { type: "source-list", sources: sourceListForOwner(socket) });
   }
@@ -246,7 +251,7 @@ function attachDreamWifiTunnel(server, options = {}) {
               reject(socket, "Pairing session is invalid or expired. Enter a fresh source pairing code.");
               return;
             }
-            registerOwner(socket, credential.sourceId, suppliedToken);
+            registerOwner(socket, credential.sourceId, suppliedToken, credential.expiresAt);
             return;
           }
 
@@ -267,7 +272,7 @@ function attachDreamWifiTunnel(server, options = {}) {
             createdAt: now
           });
           pairingAttempts.delete(remote);
-          registerOwner(socket, pairing.sourceId, accessToken);
+          registerOwner(socket, pairing.sourceId, accessToken, now + PAIRING_TOKEN_TTL_MS);
           return;
         }
         reject(socket, "Unsupported endpoint role.");
@@ -426,6 +431,7 @@ function attachDreamWifiTunnel(server, options = {}) {
       clearPingsFor(socket);
       closeStreamsFor(socket, "endpoint-disconnected");
       owners.delete(socket);
+      if (socket.dreamPairingTimer) clearTimeout(socket.dreamPairingTimer);
       const remainingForIp = Math.max(0, (connectionsPerIp.get(socket.dreamRemoteIp) || 1) - 1);
       if (remainingForIp) connectionsPerIp.set(socket.dreamRemoteIp, remainingForIp); else connectionsPerIp.delete(socket.dreamRemoteIp);
       if (socket.dreamRole === "source" && sources.get(socket.dreamSourceId) === socket) {

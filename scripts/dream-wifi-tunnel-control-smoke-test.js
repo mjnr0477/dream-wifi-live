@@ -58,6 +58,13 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 50));
     nonOwner = null;
 
+    const invalidCodeClient = new WebSocket(url);
+    await waitOpen(invalidCodeClient);
+    const invalidCodeRejected = waitMessage(invalidCodeClient, m => m.type === "error");
+    invalidCodeClient.send(JSON.stringify({ type: "register", role: "client", pairingCode: "NOT-A-VALID-CODE" }));
+    assert.match((await invalidCodeRejected).error, /valid, unexpired pairing code/i);
+    invalidCodeClient.close();
+
     owner = new WebSocket(url);
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
@@ -67,6 +74,13 @@ async function main() {
     assert.equal(ownerRegistration.sourceId, sourceRegistration.sourceId);
     assert.equal(typeof ownerRegistration.accessToken, "string");
     assert.ok(ownerRegistration.accessToken.length >= 40);
+
+    const reusedCodeClient = new WebSocket(url);
+    await waitOpen(reusedCodeClient);
+    const reusedCodeRejected = waitMessage(reusedCodeClient, m => m.type === "error");
+    reusedCodeClient.send(JSON.stringify({ type: "register", role: "client", pairingCode: pairingMessage.code }));
+    assert.match((await reusedCodeRejected).error, /valid, unexpired pairing code/i);
+    reusedCodeClient.close();
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));

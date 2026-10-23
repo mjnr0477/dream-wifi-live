@@ -761,11 +761,17 @@ final class DreamWifiRelay {
             int a = b[0] & 255, second = b[1] & 255, third = b[2] & 255;
             if (a == 0 || a >= 224 || (a == 100 && second >= 64 && second <= 127)
                     || (a == 192 && second == 0 && (third == 0 || third == 2))
-                    || (a == 192 && second == 168) || (a == 198 && (second == 18 || second == 19 || second == 51))
+                    || (a == 192 && second == 88 && third == 99)
+                    || (a == 192 && second == 168)
+                    || (a == 198 && (second == 18 || second == 19 || (second == 51 && third == 100)))
                     || (a == 203 && second == 0 && third == 113)) return false;
         } else if (b.length == 16) {
-            if ((b[0] & 0xfe) == 0xfc || (b[0] == 0x20 && (b[1] & 0xff) == 0x01
-                    && (b[2] & 0xff) == 0x0d && (b[3] & 0xff) == 0xb8)) return false;
+            int firstWord = ((b[0] & 0xff) << 8) | (b[1] & 0xff);
+            int secondWord = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+            if (firstWord < 0x2000 || firstWord > 0x3fff
+                    || (firstWord == 0x2001 && (secondWord <= 0x01ff || secondWord == 0x0db8))
+                    || firstWord == 0x2002
+                    || (firstWord == 0x3fff && secondWord <= 0x0fff)) return false;
             boolean mapped = true;
             for (int i = 0; i < 10; i++) if (b[i] != 0) mapped = false;
             if (mapped && (b[10] & 255) == 255 && (b[11] & 255) == 255) return false;

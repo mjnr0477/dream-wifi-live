@@ -50,7 +50,7 @@ async function main() {
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
-  const url = "ws://127.0.0.1:" + address.port + "/api/dream-education/dream-wifi/tunnel";
+  const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
 
   try {
     source = connect(url);

@@ -1,7 +1,7 @@
 "use strict";
 
-// Authorized source-side connector. It can open public HTTP/HTTPS TCP streams only.
-// This is not a general LAN proxy: private, loopback and link-local destinations are blocked.
+// Authorized source-side connector. It relays validated public TCP and UDP flows.
+// This is not a general LAN proxy: private, loopback, link-local, and special-purpose destinations are blocked.
 const dns = require("node:dns").promises;
 const net = require("node:net");
 const dgram = require("node:dgram");

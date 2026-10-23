@@ -132,6 +132,15 @@ final class DreamWifiRelay {
         return running.get() && ownerReady && proxyServer != null && !proxyServer.isClosed();
     }
 
+    void revokePairings() {
+        if (!sourceOnly || !sourceReady || sourceSocket == null) {
+            status("Source must be connected before receiver pairings can be revoked.");
+            return;
+        }
+        sendSource(new SafeJson().putSafe("type", "revoke-pairings").toString());
+        status("Requested revocation of all receiver pairings for this source.");
+    }
+
     void setSelectedSourceId(String sourceId) {
         String value = sourceId == null ? "" : sourceId.trim();
         selectedSourceId = value.matches("[a-zA-Z0-9_-]{1,80}") ? value : "";

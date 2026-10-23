@@ -27,13 +27,14 @@ try {
 function saveSourceCredentials(credential) {
   const byHash = new Map(enrolledSourceCredentials.map(item => [item.tokenHash, item]));
   byHash.set(credential.tokenHash, credential);
-  enrolledSourceCredentials = [...byHash.values()].slice(-10000);
+  const candidateCredentials = [...byHash.values()].slice(-10000);
   try {
     fs.mkdirSync(dataDir, { recursive: true });
     const temp = sourceCredentialsFile + ".tmp";
-    fs.writeFileSync(temp, JSON.stringify(enrolledSourceCredentials), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify(candidateCredentials), { mode: 0o600 });
     try { fs.chmodSync(temp, 0o600); } catch (_) {}
     fs.renameSync(temp, sourceCredentialsFile);
+    enrolledSourceCredentials = candidateCredentials;
     return true;
   } catch (error) {
     console.error("Could not persist source credentials. Configure DREAM_WIFI_DATA_DIR to a writable persistent disk:", error.code || "write_error");

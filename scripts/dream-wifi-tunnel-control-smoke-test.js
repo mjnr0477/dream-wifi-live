@@ -37,7 +37,7 @@ async function main() {
   });
 
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
-  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedServer, restartedWss, failingServer, failingWss;
+  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner, restartedServer, restartedWss, failingServer, failingWss;
   try {
     source = new WebSocket(url);
     await waitOpen(source);
@@ -187,6 +187,17 @@ async function main() {
     assert.equal((await restoredRegistration).sourceId, enrollment.sourceId);
     assert.match((await restoredPairingCode).code, /^[A-F0-9]{12}$/);
 
+    // Receiver access tokens intentionally remain in memory. After a backend restart,
+    // an old receiver token must be rejected and the user must pair again.
+    restartedOwner = new WebSocket("ws://127.0.0.1:" + restartedServer.address().port + "/api/dream-wifi/tunnel");
+    await waitOpen(restartedOwner);
+    const oldSessionRejected = waitMessage(restartedOwner, m => m.type === "error");
+    restartedOwner.send(JSON.stringify({
+      type: "register", role: "client", accessToken: ownerRegistration.accessToken
+    }));
+    assert.match((await oldSessionRejected).error, /invalid or expired/i);
+    restartedOwner.close();
+
     failingServer = http.createServer();
     await new Promise(resolve => failingServer.listen(0, "127.0.0.1", resolve));
     failingWss = attachDreamWifiTunnel(failingServer, {
@@ -198,7 +209,7 @@ async function main() {
 
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {
-    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment, restartedSource]) {
+    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner]) {
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
     }
     await new Promise(resolve => wss.close(resolve));

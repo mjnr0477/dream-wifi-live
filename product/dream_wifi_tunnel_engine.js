@@ -70,7 +70,10 @@ function attachDreamWifiTunnel(server, options = {}) {
       connected: socket.readyState === WebSocket.OPEN,
       connectedAt: socket.dreamSourceConnectedAt,
       latitude: socket.dreamSourceLatitude,
-      longitude: socket.dreamSourceLongitude
+      longitude: socket.dreamSourceLongitude,
+      internetReady: typeof socket.dreamInternetReady === "boolean" ? socket.dreamInternetReady : null,
+      internetCheckedAt: socket.dreamInternetCheckedAt || null,
+      internetError: socket.dreamInternetError || null
     };
   }
   function sourceListForOwner(ownerSocket) {
@@ -223,6 +226,9 @@ function attachDreamWifiTunnel(server, options = {}) {
           socket.dreamSourceAuth = sourceAuth.kind;
           socket.dreamSourceOwnerId = sourceAuth.ownerId || sourceId;
           socket.dreamSourceConnectedAt = new Date().toISOString();
+          socket.dreamInternetReady = null;
+          socket.dreamInternetCheckedAt = null;
+          socket.dreamInternetError = null;
           socket.dreamSourceLatitude = Number.isFinite(Number(message.latitude)) && message.latitude !== null && message.latitude !== "" && Number(message.latitude) >= -90 && Number(message.latitude) <= 90 ? Number(message.latitude) : null;
           socket.dreamSourceLongitude = Number.isFinite(Number(message.longitude)) && message.longitude !== null && message.longitude !== "" && Number(message.longitude) >= -180 && Number(message.longitude) <= 180 ? Number(message.longitude) : null;
           if (sourceAuth.kind === "ticket" && Number.isFinite(sourceAuth.expiresAt)) {
@@ -284,6 +290,18 @@ function attachDreamWifiTunnel(server, options = {}) {
           return;
         }
         reject(socket, "Unsupported endpoint role.");
+        return;
+      }
+
+      if (socket.dreamRole === "source" && message.type === "source-health") {
+        if (typeof message.ready !== "boolean") {
+          send(socket, { type: "error", error: "Invalid source health report." });
+          return;
+        }
+        socket.dreamInternetReady = message.ready;
+        socket.dreamInternetCheckedAt = new Date().toISOString();
+        socket.dreamInternetError = message.ready ? null : String(message.error || "internet_check_failed").slice(0, 120);
+        broadcastSourceState();
         return;
       }
 

@@ -111,6 +111,13 @@ public final class DreamVpnService extends VpnService {
                 } else if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("public internet verified")) {
                     captivePortalMode = false;
                 }
+                if (sourceOnly && message != null) {
+                    String normalized = message.toLowerCase(java.util.Locale.ROOT);
+                    if (normalized.contains("source channel rejected")
+                            && (normalized.contains("not authorized") || normalized.contains("not configured") || normalized.contains("expired"))) {
+                        DreamWifiCredentialStore.clearSource(DreamVpnService.this);
+                    }
+                }
                 updateNotification(message);
             }
             @Override public void onSources(String[] ids, String[] names) {

@@ -62,3 +62,32 @@ This inspection did not execute `npm test`, inspect live Render logs, confirm th
 - Third-device hotspot forwarding test: not run.
 
 This document records the baseline and is not a declaration that Dream Wi-Fi is production-ready.
+
+
+## Follow-up implementation work (same isolated branch)
+
+The following incremental changes were added after the initial inspection:
+
+- Receiver registration now requires a one-time pairing code or a valid scoped session token; anonymous registration is rejected.
+- The source connector generates a random 12-hex-character pairing code with a 10-minute expiry.
+- Successful pairing issues a random source-scoped session token with a 24-hour expiry. Tokens are stored server-side as SHA-256 hashes.
+- Receiver source listings and relay requests are restricted to the paired source ID.
+- Source-side terminal command `revoke` sends a revocation request that invalidates all receiver pairings for that source and closes connected paired sessions.
+- The receiver page now presents a pairing-code input and stores its session token in tab-scoped `sessionStorage`.
+- New clients use `/api/dream-wifi/tunnel`; the old path remains accepted temporarily for existing source connector compatibility.
+- Control-plane, protocol, and multi-source test cases were revised to cover pairing, anonymous rejection, one-time code use, source scoping, and revocation.
+- A GitHub Actions workflow was added for `npm test`.
+
+## Follow-up verification status
+
+- GitHub Actions runs were created but failed immediately before exposing any executable steps or usable logs through the available GitHub interface. This is not a passing test result and does not establish whether the code tests themselves pass.
+- Local test execution was not possible in this environment because the repository could not be cloned (network DNS access to GitHub was unavailable).
+- No live Render deployment was triggered or confirmed.
+- No native Android project, APK build, physical two-phone relay test, screen-off test, VPN traffic test, or third-device hotspot-forwarding test has been completed.
+
+## Remaining security and product work
+
+- Source enrollment still uses the existing shared server-side source token. A public multi-user release needs per-source enrollment credentials and a reviewed ownership model, not just source-scoped receiver pairing.
+- Pairing records and session credentials are held in memory and are lost on service restart. Persistent, revocable session handling and restart recovery must be designed before production.
+- Browser HTTP probing remains a narrow relay test and does not demonstrate HTTPS end-to-end, DNS routing for phone apps, full-device VPN operation, or hotspot forwarding.
+- All Android, background, tracker radius, live deployment, and physical-device acceptance checks remain release blockers.

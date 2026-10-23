@@ -46,16 +46,20 @@ function attachDreamWifiTunnel(server, options = {}) {
   const enrolledSourceTokens = new Map();
   const pendingPings = new Map();
 
-  for (const credential of Array.isArray(options.enrolledSourceCredentials) ? options.enrolledSourceCredentials : []) {
-    if (credential && typeof credential.sourceId === "string" &&
-        /^[a-zA-Z0-9_-]{1,80}$/.test(credential.sourceId) &&
-        typeof credential.tokenHash === "string" && /^[a-f0-9]{64}$/.test(credential.tokenHash)) {
-      enrolledSourceTokens.set(credential.tokenHash, {
-        sourceId: credential.sourceId,
-        createdAt: Number.isFinite(credential.createdAt) ? credential.createdAt : Date.now()
-      });
+  function loadEnrolledSourceCredentials(credentials) {
+    enrolledSourceTokens.clear();
+    for (const credential of Array.isArray(credentials) ? credentials : []) {
+      if (credential && typeof credential.sourceId === "string" &&
+          /^[a-zA-Z0-9_-]{1,80}$/.test(credential.sourceId) &&
+          typeof credential.tokenHash === "string" && /^[a-f0-9]{64}$/.test(credential.tokenHash)) {
+        enrolledSourceTokens.set(credential.tokenHash, {
+          sourceId: credential.sourceId,
+          createdAt: Number.isFinite(credential.createdAt) ? credential.createdAt : Date.now()
+        });
+      }
     }
   }
+  loadEnrolledSourceCredentials(options.enrolledSourceCredentials);
   const streams = new Map();
   const udpAssociations = new Map();
 
@@ -489,6 +493,7 @@ function attachDreamWifiTunnel(server, options = {}) {
     socket.on("error", () => {});
   });
 
+  wss.loadEnrolledSourceCredentials = loadEnrolledSourceCredentials;
   wss.sourceConnected = sourceConnected;
   wss.getSources = () => [...sources.values()].map(sourceDetails);
   function createEnrollment() {

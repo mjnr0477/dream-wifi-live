@@ -45,6 +45,17 @@ function attachDreamWifiTunnel(server, options = {}) {
   const pairingAttempts = new Map();
   const enrolledSourceTokens = new Map();
   const pendingPings = new Map();
+
+  for (const credential of Array.isArray(options.enrolledSourceCredentials) ? options.enrolledSourceCredentials : []) {
+    if (credential && typeof credential.sourceId === "string" &&
+        /^[a-zA-Z0-9_-]{1,80}$/.test(credential.sourceId) &&
+        typeof credential.tokenHash === "string" && /^[a-f0-9]{64}$/.test(credential.tokenHash)) {
+      enrolledSourceTokens.set(credential.tokenHash, {
+        sourceId: credential.sourceId,
+        createdAt: Number.isFinite(credential.createdAt) ? credential.createdAt : Date.now()
+      });
+    }
+  }
   const streams = new Map();
   const udpAssociations = new Map();
 
@@ -483,9 +494,14 @@ function attachDreamWifiTunnel(server, options = {}) {
   wss.enrollSource = () => {
     const sourceId = crypto.randomUUID().replace(/-/g, "");
     const sourceTokenValue = crypto.randomBytes(32).toString("base64url");
-    enrolledSourceTokens.set(hashCredential(sourceTokenValue), { sourceId, createdAt: Date.now() });
+    const credential = { sourceId, tokenHash: hashCredential(sourceTokenValue), createdAt: Date.now() };
+    enrolledSourceTokens.set(credential.tokenHash, { sourceId, createdAt: credential.createdAt });
+    if (typeof options.onEnrollSource === "function") options.onEnrollSource(credential);
     return { sourceId, sourceToken: sourceTokenValue };
   };
+  wss.getEnrolledSourceCredentials = () => [...enrolledSourceTokens.entries()].map(([tokenHash, credential]) => ({
+    sourceId: credential.sourceId, tokenHash, createdAt: credential.createdAt
+  }));
   wss.revokePairingsForSource = sourceId => {
     const id = String(sourceId || "");
     for (const [tokenHash, credential] of pairingTokens.entries()) if (credential.sourceId === id) pairingTokens.delete(tokenHash);

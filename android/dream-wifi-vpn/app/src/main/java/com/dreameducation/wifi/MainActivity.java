@@ -187,6 +187,16 @@ public final class MainActivity extends Activity {
     }
 
     private void performSourceEnrollment() {
+        DreamWifiCredentialStore.SourceCredentials saved = DreamWifiCredentialStore.loadSource(this);
+        if (saved != null) {
+            pendingSourceId = saved.sourceId;
+            pendingSourceToken = saved.sourceToken;
+            connectButton.setEnabled(true);
+            status.setText("Reusing this phone's encrypted source credential.");
+            startSourceService();
+            return;
+        }
+
         connectButton.setEnabled(false);
         status.setText("Creating a unique standalone source credential…");
         authWorker.execute(() -> {
@@ -197,6 +207,7 @@ public final class MainActivity extends Activity {
                 if (!enrollment.optBoolean("success") || sourceId.isEmpty() || sourceToken.isEmpty()) {
                     throw new Exception(enrollment.optString("error", "Source enrollment failed."));
                 }
+                DreamWifiCredentialStore.saveSource(MainActivity.this, sourceId, sourceToken);
                 runOnUiThread(() -> {
                     pendingSourceId = sourceId;
                     pendingSourceToken = sourceToken;

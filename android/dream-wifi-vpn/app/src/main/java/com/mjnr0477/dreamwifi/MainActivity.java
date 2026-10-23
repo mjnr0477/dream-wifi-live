@@ -75,7 +75,7 @@ public final class MainActivity extends Activity {
                 if (selectedSourceId.isEmpty() && availableSourceIds.length == 1) {
                     selectedSourceId = availableSourceIds[0];
                 }
-                if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                if (sourceButton != null) sourceButton.setText("Share Internet");
                 refreshNetworkInfo();
             } else if (status != null) status.setText(intent.getStringExtra("message"));
         }
@@ -195,8 +195,8 @@ public final class MainActivity extends Activity {
             pendingAccessToken = savedReceiver.accessToken;
             pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
-            sourceButton.setText(selectedSourceLabel());
-            status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");
+            connectButton.setText("Reconnect");
+            status.setText("Saved receiver connection available. Tap Reconnect to try again.");
         }
     }
 
@@ -390,7 +390,7 @@ public final class MainActivity extends Activity {
                 .setTitle("Available Dream Wi-Fi sources")
                 .setItems(choices, (dialog, which) -> {
                     selectedSourceId = which == 0 ? "" : availableSourceIds[which - 1];
-                    if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                    if (sourceButton != null) sourceButton.setText("Share Internet");
                     refreshNetworkInfo();
                     Intent intent = new Intent(this, DreamVpnService.class);
                     intent.setAction(DreamVpnService.ACTION_SELECT_SOURCE);

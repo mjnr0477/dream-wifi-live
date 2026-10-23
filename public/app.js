@@ -13,8 +13,7 @@
       const result = JSON.parse(nativeApi["getSource" + "PairingCode"]());
       if (!result.available || !/^[A-F0-9]{12}$/.test(result.code || "")) { value.textContent = "Waiting for source phone…"; expiry.textContent = "Start source sharing. The code appears automatically when the relay is online."; return; }
       value.textContent = result.code.match(/.{1,4}/g).join(" ");
-      const seconds = Math.max(0, Math.ceil((Number(result.expiresAt) - Date.now()) / 1000));
-      expiry.textContent = seconds ? "One-time code · expires in " + Math.floor(seconds / 60) + "m " + (seconds % 60) + "s. Share only with your authorized receiver." : "Code expired. Keep source sharing online for a fresh code."; 
+      expiry.textContent = "One-time code · stays available while source sharing is online. Share only with your authorized receiver."; 
     } catch (_) { value.textContent = "Pairing code temporarily unavailable"; expiry.textContent = "Keep source sharing active and reopen this dashboard if needed."; }
   }
   refreshPairingCode();

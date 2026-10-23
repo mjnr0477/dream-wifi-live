@@ -1,7 +1,5 @@
 "use strict";
 
-const crypto = require("node:crypto");
-
 function createDreamWifiSupabaseStore(options = {}) {
   const url = String(options.url || process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
   const serviceKey = String(options.serviceKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();

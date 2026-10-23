@@ -54,6 +54,8 @@ jobs:
               throw new Error("Live configuration is not release-ready: " + JSON.stringify(config));
             }
             const policyPages = [
+              ["/", "Prototype testing notice"],
+              ["/receive.html", "Native Android VPN routing"],
               ["/privacy.html", "Privacy notice"],
               ["/terms.html", "Terms and acceptable use"],
               ["/support.html", "Support and abuse reporting"]

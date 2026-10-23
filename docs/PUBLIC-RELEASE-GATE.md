@@ -45,10 +45,11 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 
 ## Current verified facts
 
-- Backend verification passed on commit `3e05a8712414da6661ac4cf16d8f99ccc6e155f9`, including the hotspot provider fallback tests.
-- The latest Android debug build workflow for that commit is still being checked; do not treat it as passed until GitHub Actions reports success.
-- The public hotspot lookup now tries five Overpass endpoints instead of three. This change is on the working branch only; it has not been deployed to Render or confirmed to restore live map results.
-- The Render production service is live on `main` at `f50107eddef6a276ec922ddf090065d2154da78d`. Its latest deployment logs reported all three original Overpass providers timing out or returning HTTP 504.
-- Render blueprint uses the free plan and has no configured persistent disk. No paid upgrade or production deployment change has been made.
+- Backend verification passed on the current working-branch head `af894ee9139260c1cfb095e0fbf5c85632fcb465`: [GitHub Actions run 39924621343](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39924621343).
+- Android debug APK build passed on that same commit: [GitHub Actions run 39924621419](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39924621419). The artifact is a debug/test APK, not a production-signed release.
+- The public hotspot lookup tries five Overpass endpoints. Backend tests pass, but this branch has not been deployed to Render and the new endpoints have not yet been verified against the live service.
+- The Render production service is configured on the free plan, tracks `main`, and has no configured persistent disk. The Render workspace currently has no Postgres or Key Value instance available for Dream Wi-Fi.
+- The connected Supabase account has an active project named `Dream education`, but no dedicated Dream Wi-Fi project. Do not reuse or modify the Dream Education project; the two products must remain separate.
+- Durable production storage remains unresolved. Before enabling public source enrollment, provision an explicitly approved Dream Wi-Fi-only durable store or persistent disk, configure the service to use it, and verify restart recovery. No paid infrastructure or production deployment change has been made.
 - No physical-device end-to-end acceptance tests have been completed.
-- The debug APK is a test artifact, not a production-signed release.
+- Current tunnel limits and the unverified downstream-hotspot behavior remain release blockers. Do not advertise unrestricted internet sharing or third-phone hotspot forwarding until verified on supported devices.

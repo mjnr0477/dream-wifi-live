@@ -491,20 +491,41 @@ function attachDreamWifiTunnel(server, options = {}) {
 
   wss.sourceConnected = sourceConnected;
   wss.getSources = () => [...sources.values()].map(sourceDetails);
-  wss.enrollSource = () => {
+  function createEnrollment() {
     const sourceId = crypto.randomUUID().replace(/-/g, "");
     const sourceTokenValue = crypto.randomBytes(32).toString("base64url");
-    const credential = { sourceId, tokenHash: hashCredential(sourceTokenValue), createdAt: Date.now() };
-    enrolledSourceTokens.set(credential.tokenHash, { sourceId, createdAt: credential.createdAt });
+    return {
+      sourceId,
+      sourceToken: sourceTokenValue,
+      credential: { sourceId, tokenHash: hashCredential(sourceTokenValue), createdAt: Date.now() }
+    };
+  }
+  wss.enrollSource = () => {
+    const enrollment = createEnrollment();
+    const { credential } = enrollment;
     try {
-      if (typeof options.onEnrollSource === "function" && options.onEnrollSource(credential) === false) {
-        throw new Error("Source credential persistence failed.");
+      if (typeof options.onEnrollSource === "function") {
+        const persisted = options.onEnrollSource(credential);
+        if (persisted && typeof persisted.then === "function") {
+          throw new Error("Asynchronous credential persistence requires enrollSourceAsync().");
+        }
+        if (persisted === false) throw new Error("Source credential persistence failed.");
       }
     } catch (error) {
-      enrolledSourceTokens.delete(credential.tokenHash);
       throw error;
     }
-    return { sourceId, sourceToken: sourceTokenValue };
+    enrolledSourceTokens.set(credential.tokenHash, { sourceId: credential.sourceId, createdAt: credential.createdAt });
+    return { sourceId: enrollment.sourceId, sourceToken: enrollment.sourceToken };
+  };
+  wss.enrollSourceAsync = async () => {
+    const enrollment = createEnrollment();
+    const { credential } = enrollment;
+    if (typeof options.onEnrollSource === "function") {
+      const persisted = await options.onEnrollSource(credential);
+      if (persisted === false) throw new Error("Source credential persistence failed.");
+    }
+    enrolledSourceTokens.set(credential.tokenHash, { sourceId: credential.sourceId, createdAt: credential.createdAt });
+    return { sourceId: enrollment.sourceId, sourceToken: enrollment.sourceToken };
   };
   wss.getEnrolledSourceCredentials = () => [...enrolledSourceTokens.entries()].map(([tokenHash, credential]) => ({
     sourceId: credential.sourceId, tokenHash, createdAt: credential.createdAt

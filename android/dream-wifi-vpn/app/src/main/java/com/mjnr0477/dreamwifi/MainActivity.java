@@ -62,6 +62,9 @@ public final class MainActivity extends Activity {
                 String[] names = intent.getStringArrayExtra("names");
                 availableSourceIds = ids == null ? new String[0] : ids;
                 availableSourceNames = names == null ? new String[0] : names;
+                if (selectedSourceId.isEmpty() && availableSourceIds.length == 1) {
+                    selectedSourceId = availableSourceIds[0];
+                }
                 if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
                 refreshNetworkInfo();
             } else if (status != null) status.setText(intent.getStringExtra("message"));

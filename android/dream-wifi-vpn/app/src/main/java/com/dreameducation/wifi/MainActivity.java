@@ -282,58 +282,6 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void signInAndConnect(boolean sourceOnly) {
-        String email = emailInput.getText().toString().trim();
-        String password = passwordInput.getText().toString();
-        if (email.isEmpty() || password.isEmpty()) {
-            status.setText("Enter your Dream Education email and password.");
-            return;
-        }
-        connectButton.setEnabled(false);
-        status.setText(sourceOnly
-                ? "Signing in and preparing this phone as a Wi-Fi source…"
-                : "Signing in securely and requesting a short-lived source ticket…");
-        authWorker.execute(() -> {
-            try {
-                JSONObject credentials = new JSONObject();
-                credentials.put("email", email);
-                credentials.put("password", password);
-                JSONObject login = postJson(DreamWifiRelay.BASE_URL + "/api/auth/login", credentials, null);
-                JSONObject session = login.optJSONObject("session");
-                String accessToken = session == null ? "" : session.optString("access_token", "");
-                String refreshToken = session == null ? "" : session.optString("refresh_token", "");
-                if (!login.optBoolean("success") || accessToken.isEmpty() || refreshToken.isEmpty()) {
-                    throw new Exception(login.optString("error", "Login did not return a session."));
-                }
-                JSONObject ticket = postJson(DreamWifiRelay.BASE_URL + "/api/dream-wifi/source-ticket",
-                        new JSONObject(), accessToken);
-                String sourceTicket = ticket.optString("token", "");
-                if (!ticket.optBoolean("success") || sourceTicket.isEmpty()) {
-                    throw new Exception(ticket.optString("error", "Could not authorize the source connection."));
-                }
-                runOnUiThread(() -> {
-                    pendingAccessToken = accessToken;
-                    pendingRefreshToken = refreshToken;
-                    pendingSourceTicket = sourceTicket;
-                    passwordInput.setText("");
-                    connectButton.setEnabled(true);
-                    if (sourceOnly) {
-                        startSourceService();
-                    } else {
-                        Intent permission = VpnService.prepare(this);
-                        if (permission != null) startActivityForResult(permission, VPN_PERMISSION_REQUEST);
-                        else startVpnService();
-                    }
-                });
-            } catch (Exception error) {
-                runOnUiThread(() -> {
-                    connectButton.setEnabled(true);
-                    status.setText("Sign-in/connection setup failed: " + safe(error.getMessage()));
-                });
-            }
-        });
-    }
-
     private String selectedSourceLabel() {
         if (selectedSourceId.isEmpty()) return "Choose Wi-Fi source (automatic)";
         for (int i = 0; i < availableSourceIds.length; i++) {

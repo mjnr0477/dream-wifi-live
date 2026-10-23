@@ -59,11 +59,22 @@ app.get("/api/wifi/sources", (req, res) => {
     knownSources.set(source.id, { id: source.id, name: source.name, latitude: lat, longitude: lon, first_seen: prior.first_seen || now, last_seen: now });
   }
   saveRegistry();
-  const liveIds = new Set(live.map(source => source.id));
-  const sources = [...knownSources.values()].map(source => ({ ...source, connected: liveIds.has(source.id), distance_km: Math.round(distanceKm(latitude, longitude, source.latitude, source.longitude) * 10) / 10 }))
-    .filter(source => source.distance_km <= radiusKm).sort((a, b) => a.distance_km - b.distance_km).slice(0, 200);
+  const liveById = new Map(live.map(source => [source.id, source]));
+  const liveIds = new Set(liveById.keys());
+  const sources = [...knownSources.values()].map(source => {
+    const liveSource = liveById.get(source.id);
+    return {
+      ...source,
+      connected: liveIds.has(source.id),
+      internet_ready: liveSource ? liveSource.internetReady : null,
+      internet_checked_at: liveSource ? liveSource.internetCheckedAt : null,
+      internet_error: liveSource ? liveSource.internetError : null,
+      distance_km: Math.round(distanceKm(latitude, longitude, source.latitude, source.longitude) * 10) / 10
+    };
+  }).filter(source => source.distance_km <= radiusKm)
+    .sort((a, b) => a.distance_km - b.distance_km).slice(0, 200);
   res.json({ success: true, radius_km: radiusKm, sources, count: sources.length, online_count: sources.filter(source => source.connected).length,
-    note: "This directory contains participating Dream Wi-Fi source devices with reported coordinates. Offline entries are not connectable." });
+    note: "Online means the source relay is connected. internet_ready is a separate source-side DNS/TCP reachability probe, not proof that a receiver's end-to-end relay test will succeed." });
 });
 app.get("/api/wifi/hotspots", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);

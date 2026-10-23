@@ -10,7 +10,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 - Core source enrollment and receiver pairing do not require Dream Education sign-in, Supabase accounts, or Supabase keys.
 - `POST /api/dream-wifi/source-enroll` creates a unique source ID/token, rate-limited per IP. Receiver pairing uses a one-time source code (10-minute expiry) and returns a source-scoped receiver session (24-hour expiry).
 - A source can relay traffic only while online and explicitly configured to share its network. The server tunnel currently supports bounded TCP ports 80/443 and DNS UDP port 53; it is not proof of unrestricted application traffic.
-- Receiver sessions and native source enrollment tokens are currently held in memory. A backend restart invalidates them; persistent credential storage and recovery are release blockers.
+- Source enrollment stores only SHA-256 token hashes in `source-credentials.json` under `DREAM_WIFI_DATA_DIR`. Restart recovery requires that directory to be writable and mounted on durable storage. Pairing codes and receiver sessions remain in memory, so receivers must pair again after backend restarts.
 - The legacy Node source agent still supports `DREAM_WIFI_SOURCE_TOKEN` configured only on the server/authorized source agent. Never put that shared secret in browser or APK code.
 
 ## Sharing and receiving roles
@@ -23,7 +23,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, independent of Dream Education an
 ## Environment
 Server:
 - `DREAM_WIFI_SOURCE_TOKEN`: legacy long random secret used only by authorized Node source agents. Never put it in browser or APK code.
-- `DREAM_WIFI_DATA_DIR`: optional writable directory for the source directory JSON file. Point this to a persistent disk mount to retain reports across host restarts/deploys.
+- `DREAM_WIFI_DATA_DIR`: writable directory for `sources.json` and hashed `source-credentials.json`. Point this to a persistent disk mount to retain source reports and source credential recovery across host restarts/deploys. The current Render blueprint is free-tier and does not attach a persistent disk, so this requirement is not met by that deployment configuration yet.
 - `PORT`: provided by the host.
 
 Authorized source device:

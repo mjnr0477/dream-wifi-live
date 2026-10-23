@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText emailInput;
     private EditText passwordInput;
+    private EditText pairingCodeInput;
     private Button connectButton;
     private Button sourceButton;
     private TextView status;
@@ -63,6 +64,9 @@ public final class MainActivity extends Activity {
     private String pendingAccessToken;
     private String pendingRefreshToken;
     private String pendingSourceTicket;
+    private String pendingPairingCode;
+    private String pendingSourceToken;
+    private String pendingSourceId;
     private boolean statusReceiverRegistered = false;
     private boolean scanReceiverRegistered = false;
     private boolean scanInProgress = false;
@@ -95,7 +99,7 @@ public final class MainActivity extends Activity {
         box.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Sign in with your Dream Education account, then choose an available local or remote Dream Wi-Fi source. Any source hotspot may still require its normal password or package/payment login.");
+        note.setText("Standalone Dream Wi-Fi: enter the one-time pairing code supplied by the source owner to connect this phone through that source. Source publishing uses a separate enrollment step. Any provider captive portal or package/payment login must still be completed normally.");
         note.setTextSize(15);
         note.setPadding(0, 18, 0, 18);
         box.addView(note);
@@ -112,14 +116,20 @@ public final class MainActivity extends Activity {
         passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         box.addView(passwordInput, new LinearLayout.LayoutParams(-1, -2));
 
+        pairingCodeInput = new EditText(this);
+        pairingCodeInput.setSingleLine(true);
+        pairingCodeInput.setHint("One-time source pairing code");
+        pairingCodeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        box.addView(pairingCodeInput, new LinearLayout.LayoutParams(-1, -2));
+
         connectButton = new Button(this);
-        connectButton.setText("Sign in and connect");
-        connectButton.setOnClickListener(v -> signInAndConnect(false));
+        connectButton.setText("Pair and connect VPN");
+        connectButton.setOnClickListener(v -> connectWithPairingCode());
         box.addView(connectButton);
 
         Button publishSourceButton = new Button(this);
         publishSourceButton.setText("Publish this Wi-Fi as a remote source");
-        publishSourceButton.setOnClickListener(v -> signInAndConnect(true));
+        publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
         box.addView(publishSourceButton);
 
         sourceButton = new Button(this);
@@ -172,6 +182,62 @@ public final class MainActivity extends Activity {
         status.setPadding(0, 16, 0, 0);
         box.addView(status);
         setContentView(box);
+    }
+
+    private void connectWithPairingCode() {
+        if (DreamWifiRelay.BASE_URL == null || DreamWifiRelay.BASE_URL.isEmpty()) {
+            status.setText("The Dream Wi-Fi service URL is not configured in this APK build.");
+            return;
+        }
+        String code = pairingCodeInput.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
+        if (code.isEmpty()) {
+            status.setText("Enter the one-time pairing code shown by the source owner's running connector.");
+            return;
+        }
+        pendingPairingCode = code;
+        connectButton.setEnabled(false);
+        status.setText("Requesting Android VPN permission and pairing with the selected source…");
+        Intent permission = VpnService.prepare(this);
+        if (permission != null) startActivityForResult(permission, VPN_PERMISSION_REQUEST);
+        else {
+            connectButton.setEnabled(true);
+            startVpnService();
+        }
+    }
+
+    private void enrollAndStartSource() {
+        if (DreamWifiRelay.BASE_URL == null || DreamWifiRelay.BASE_URL.isEmpty()) {
+            status.setText("The Dream Wi-Fi service URL is not configured in this APK build.");
+            return;
+        }
+        if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        if (wifiManager == null || !wifiManager.isWifiEnabled()) {
+            status.setText("Connect this phone to the Wi-Fi network you want to share, then retry.");
+            return;
+        }
+        connectButton.setEnabled(false);
+        status.setText("Creating a unique standalone source credential…");
+        authWorker.execute(() -> {
+            try {
+                JSONObject enrollment = postJson(DreamWifiRelay.BASE_URL + "/api/dream-wifi/source-enroll", new JSONObject(), null);
+                String sourceId = enrollment.optString("source_id", "");
+                String sourceToken = enrollment.optString("source_token", "");
+                if (!enrollment.optBoolean("success") || sourceId.isEmpty() || sourceToken.isEmpty()) {
+                    throw new Exception(enrollment.optString("error", "Source enrollment failed."));
+                }
+                runOnUiThread(() -> {
+                    pendingSourceId = sourceId;
+                    pendingSourceToken = sourceToken;
+                    connectButton.setEnabled(true);
+                    startSourceService();
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    connectButton.setEnabled(true);
+                    status.setText("Standalone source enrollment failed: " + safe(error.getMessage()));
+                });
+            }
+        });
     }
 
     private void signInForScanning() {
@@ -518,15 +584,14 @@ public final class MainActivity extends Activity {
     }
 
     private void startSourceService() {
-        if (pendingAccessToken == null || pendingRefreshToken == null || pendingSourceTicket == null) {
-            status.setText("Sign in again to authorize this source.");
+        if (pendingSourceToken == null || pendingSourceId == null) {
+            status.setText("Publish this source again to obtain a standalone source credential.");
             return;
         }
         Intent intent = new Intent(this, DreamVpnService.class);
         intent.setAction(DreamVpnService.ACTION_START);
-        intent.putExtra(DreamVpnService.EXTRA_ACCESS_TOKEN, pendingAccessToken);
-        intent.putExtra(DreamVpnService.EXTRA_REFRESH_TOKEN, pendingRefreshToken);
-        intent.putExtra(DreamVpnService.EXTRA_SOURCE_TICKET, pendingSourceTicket);
+        intent.putExtra(DreamVpnService.EXTRA_SOURCE_TOKEN, pendingSourceToken);
+        intent.putExtra(DreamVpnService.EXTRA_SOURCE_ID, pendingSourceId);
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_ONLY, true);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);
@@ -534,15 +599,14 @@ public final class MainActivity extends Activity {
     }
 
     private void startVpnService() {
-        if (pendingAccessToken == null || pendingRefreshToken == null || pendingSourceTicket == null) {
-            status.setText("Sign in again to create a secure tunnel session.");
+        if (pendingPairingCode == null || pendingPairingCode.isEmpty()) {
+            connectButton.setEnabled(true);
+            status.setText("Enter the one-time pairing code from the source owner.");
             return;
         }
         Intent intent = new Intent(this, DreamVpnService.class);
         intent.setAction(DreamVpnService.ACTION_START);
-        intent.putExtra(DreamVpnService.EXTRA_ACCESS_TOKEN, pendingAccessToken);
-        intent.putExtra(DreamVpnService.EXTRA_REFRESH_TOKEN, pendingRefreshToken);
-        intent.putExtra(DreamVpnService.EXTRA_SOURCE_TICKET, pendingSourceTicket);
+        intent.putExtra(DreamVpnService.EXTRA_PAIRING_CODE, pendingPairingCode);
         intent.putExtra(DreamVpnService.EXTRA_SELECTED_SOURCE_ID, selectedSourceId);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);

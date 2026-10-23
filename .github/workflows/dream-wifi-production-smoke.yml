@@ -53,12 +53,23 @@ jobs:
             if (config.database !== true || config.durable_storage_ready !== true || config.source_enrollment !== true) {
               throw new Error("Live configuration is not release-ready: " + JSON.stringify(config));
             }
-            for (const page of ["/privacy.html", "/terms.html", "/support.html"]) {
-              const response = await get(page);
-              const html = await response.text();
-              if (!/<!doctype html>/i.test(html) || !html.includes("Dream Wi-Fi") && !html.includes("DREAM")) {
-                throw new Error(page + " is not a valid public policy page");
+            const policyPages = [
+              ["/privacy.html", "Privacy notice"],
+              ["/terms.html", "Terms and acceptable use"],
+              ["/support.html", "Support and abuse reporting"]
+            ];
+            for (const [page, marker] of policyPages) {
+              let found = false;
+              for (let attempt = 0; attempt < 18; attempt++) {
+                const response = await get(page);
+                const html = await response.text();
+                if (/<\\!doctype html>/i.test(html) && html.includes(marker)) {
+                  found = true;
+                  break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 10000));
               }
+              if (!found) throw new Error(page + " did not serve the expected new policy content after deployment.");
             }
             const headers = healthResponse.headers;
             if (headers.get("x-content-type-options") !== "nosniff") {

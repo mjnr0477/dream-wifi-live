@@ -64,6 +64,9 @@ function attachDreamWifiTunnel(server, options = {}) {
     return false;
   }
   function sourceDetails(socket) {
+    const checkedAt = socket.dreamInternetCheckedAt || null;
+    const checkedAtMs = checkedAt ? Date.parse(checkedAt) : NaN;
+    const healthFresh = Number.isFinite(checkedAtMs) && Date.now() - checkedAtMs <= 120000;
     return {
       id: socket.dreamSourceId,
       name: socket.dreamSourceName,
@@ -71,9 +74,9 @@ function attachDreamWifiTunnel(server, options = {}) {
       connectedAt: socket.dreamSourceConnectedAt,
       latitude: socket.dreamSourceLatitude,
       longitude: socket.dreamSourceLongitude,
-      internetReady: typeof socket.dreamInternetReady === "boolean" ? socket.dreamInternetReady : null,
-      internetCheckedAt: socket.dreamInternetCheckedAt || null,
-      internetError: socket.dreamInternetError || null
+      internetReady: healthFresh && typeof socket.dreamInternetReady === "boolean" ? socket.dreamInternetReady : null,
+      internetCheckedAt: checkedAt,
+      internetError: healthFresh ? (socket.dreamInternetError || null) : (checkedAt ? "health_probe_stale" : null)
     };
   }
   function sourceListForOwner(ownerSocket) {

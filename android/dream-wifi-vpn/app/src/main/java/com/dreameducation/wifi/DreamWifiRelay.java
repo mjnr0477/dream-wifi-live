@@ -119,6 +119,7 @@ final class DreamWifiRelay {
             connectOwner();
         } else {
             connectSource();
+            scheduler.scheduleAtFixedRate(() -> workers.execute(this::reportSourceInternetHealth), 0, 60, TimeUnit.SECONDS);
         }
         status(sourceOnly
                 ? controlNetwork == null
@@ -412,6 +413,12 @@ final class DreamWifiRelay {
                     sourceRetrySeconds = 3;
                     status(sourceOnly ? "This phone is now publishing its connected Wi-Fi source." : "Remote Wi-Fi source authenticated; waiting for owner channel…");
                     notifyReadyIfPossible();
+                } else if ("pairing-code".equals(type)) {
+                    status("Source is online. Receiver pairing code: " + message.optString("code", "")
+                            + " · expires in " + Math.max(1, (message.optInt("expiresInSeconds", 600) + 59) / 60)
+                            + " minute(s). Share this code only with the receiver you authorize.");
+                } else if ("pairings-revoked".equals(type)) {
+                    status("All receiver pairings for this source have been revoked.");
                 } else if ("ping".equals(type)) {
                     sendSource(new SafeJson().putSafe("type", "pong").putSafe("id", message.optString("id", "")).toString());
                 } else if ("tcp-open".equals(type)) {
@@ -606,6 +613,31 @@ final class DreamWifiRelay {
             byte[] packet = buildUdpPacket(message.optString("host", ""), message.optInt("port", 53), data);
             if (packet != null) association.socket.send(new DatagramPacket(packet, packet.length, association.endpoint));
         } catch (Exception ignored) {}
+    }
+
+    private void reportSourceInternetHealth() {
+        if (!running.get() || !sourceOnly || sourceNetwork == null || !sourceReady) return;
+        workers.execute(() -> {
+            boolean ready = false;
+            String error = "internet_probe_failed";
+            HttpURLConnection connection = null;
+            try {
+                java.net.URL url = new java.net.URL("https://connectivitycheck.gstatic.com/generate_204");
+                connection = (HttpURLConnection) sourceNetwork.openConnection(url);
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestMethod("GET");
+                ready = connection.getResponseCode() == 204;
+                error = ready ? "" : "http_" + connection.getResponseCode();
+            } catch (Exception failure) {
+                error = safeReason(failure.getMessage());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+            sendSource(new SafeJson().putSafe("type", "source-health").putSafe("ready", ready)
+                    .putSafe("error", error).putSafe("checkedAt", java.time.Instant.now().toString()).toString());
+        });
     }
 
     private void openSourceStream(JSONObject message) {

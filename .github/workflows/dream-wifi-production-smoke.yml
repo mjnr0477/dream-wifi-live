@@ -61,11 +61,17 @@ jobs:
             for (const [page, marker] of policyPages) {
               let found = false;
               for (let attempt = 0; attempt < 18; attempt++) {
-                const response = await get(page);
-                const html = await response.text();
-                if (/<!doctype html>/i.test(html) && html.includes(marker)) {
-                  found = true;
-                  break;
+                try {
+                  const response = await fetch(new URL(page, base), { redirect: "error" });
+                  if (response.ok) {
+                    const html = await response.text();
+                    if (/<!doctype html>/i.test(html) && html.includes(marker)) {
+                      found = true;
+                      break;
+                    }
+                  }
+                } catch (_) {
+                  // Render may still be rolling out the new commit; retry the content check.
                 }
                 await new Promise(resolve => setTimeout(resolve, 10000));
               }

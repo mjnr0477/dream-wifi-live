@@ -22,11 +22,11 @@ const server = read("server.js");
 const tunnel = read("product/dream_wifi_tunnel_engine.js");
 
 assert.ok(fs.existsSync(sourceRoot), "Native Android source package must exist.");
-assert.match(androidBuild, /namespace "com\\.dreamwifi\\.android"/);
-assert.match(androidBuild, /applicationId "com\\.dreamwifi\\.android"/);
-assert.doesNotMatch(androidBuild, /com\\.dreameducation\\.wifi/);
-assert.match(activity, /com\\.dreamwifi\\.android\\.STATUS/);
-assert.doesNotMatch(service, /com\\.dreameducation\\.wifi\\./);
+assert.match(androidBuild, /namespace "com\.dreamwifi\.android"/);
+assert.match(androidBuild, /applicationId "com\.dreamwifi\.android"/);
+assert.doesNotMatch(androidBuild, /com\.dreameducation\.wifi/);
+assert.match(activity, /com\.dreamwifi\.android\.STATUS/);
+assert.doesNotMatch(service, /com\.dreameducation\.wifi\./);
 assert.match(manifest, /android\.net\.VpnService/);
 assert.match(manifest, /BIND_VPN_SERVICE/);
 assert.match(manifest, /FOREGROUND_SERVICE/);

@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const repository = path.join(__dirname, "..");
 const android = path.join(repository, "android", "dream-wifi-vpn");
-const sourceRoot = path.join(android, "app", "src", "main", "java", "com", "dreameducation", "wifi");
+const sourceRoot = path.join(android, "app", "src", "main", "java", "com", "dreamwifi", "android");
 const read = file => fs.readFileSync(path.join(repository, file), "utf8");
 
 const manifest = read("android/dream-wifi-vpn/app/src/main/AndroidManifest.xml");

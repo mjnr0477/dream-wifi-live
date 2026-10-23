@@ -21,11 +21,13 @@
 <ol class="steps">
 <li>Use a device connected to a Wi-Fi network with working internet.</li>
 <li>Install and run the Dream Wi-Fi source connector on that device. Android currently requires a compatible terminal environment; this is not a one-tap browser feature.</li>
-<li>Authorize the connector with a source credential provided through a secure setup process. Never post a source token publicly or send it in this link.</li>
+<li>Authorize the connector using the server-side source token. Never place the source token in this page, browser storage, a public link, or GitHub.</li>
+<li>After the connector registers, copy the one-time receiver pairing code printed in its terminal and give it only to the person you authorize. The code expires in 10 minutes and can be used once.</li>
+<li>To revoke every receiver pairing for this source, type <code>revoke</code> in the running source connector terminal. Re-authorize the receiver with a new code afterward.</li>
 <li>Keep the device online. When the connector is connected, the source should appear as online in Dream Wi-Fi discovery.</li>
 <li>Stop the connector whenever you want to stop sharing. The relay is limited and is not a full-device VPN.</li>
 </ol>
-<p class="muted">The current hosted service has the tunnel control plane, but a self-service pairing flow and a one-tap Android sharing app are not yet available. Do not assume your internet is being shared until the source appears online and a real connection test succeeds.</p>
+<p class="muted">The relay now requires a one-time source pairing code for receiver access. Pairing grants a source-scoped session that expires after 24 hours; source owners can revoke all active pairings from the running connector terminal. The browser receiver still tests only supported HTTP relay traffic. A one-tap Android sharing app and full-device VPN/hotspot forwarding are separate work that must be implemented and physically tested.</p>
 <div class="row"><button id="share-link">Share this setup link</button><button class="secondary" id="check-status">Check source status</button></div>
 <p id="status" role="status" aria-live="polite"></p>
 </section>

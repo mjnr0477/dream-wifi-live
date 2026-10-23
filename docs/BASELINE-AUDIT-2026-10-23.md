@@ -74,6 +74,7 @@ The following incremental changes were added after the initial inspection:
 - Receiver source listings and relay requests are restricted to the paired source ID.
 - Source-side terminal command `revoke` sends a revocation request that invalidates all receiver pairings for that source and closes connected paired sessions.
 - The receiver page now presents a pairing-code input and stores its session token in tab-scoped `sessionStorage`.
+- The source connector now probes DNS plus TCP/443 reachability to a public test host every 60 seconds and reports this separately from WebSocket/relay presence; the tracker and receiver UI distinguish the two signals.
 - New clients use `/api/dream-wifi/tunnel`; the old path remains accepted temporarily for existing source connector compatibility.
 - Control-plane, protocol, and multi-source test cases were revised to cover pairing, anonymous rejection, one-time code use, source scoping, and revocation.
 - A GitHub Actions workflow was added for `npm test`.

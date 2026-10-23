@@ -374,7 +374,14 @@ final class DreamWifiRelay {
                 } else if ("error".equals(type)) {
                     String reason = message.optString("error", "authorization failed");
                     status("Owner channel rejected: " + reason);
-                    if (accessToken.isEmpty()) pairingCode = "";
+                    String lowerReason = reason.toLowerCase(java.util.Locale.ROOT);
+                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired")) {
+                        accessToken = "";
+                        pairingCode = "";
+                        status("Receiver pairing expired or was revoked. Disconnect and enter a fresh source pairing code.");
+                    } else if (accessToken.isEmpty()) {
+                        pairingCode = "";
+                    }
                     webSocket.close(1008, "receiver authorization rejected");
                 }
             }

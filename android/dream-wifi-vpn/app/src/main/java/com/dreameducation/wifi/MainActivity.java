@@ -104,18 +104,6 @@ public final class MainActivity extends Activity {
         note.setPadding(0, 18, 0, 18);
         box.addView(note);
 
-        emailInput = new EditText(this);
-        emailInput.setSingleLine(true);
-        emailInput.setHint("Dream Education email");
-        emailInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-        box.addView(emailInput, new LinearLayout.LayoutParams(-1, -2));
-
-        passwordInput = new EditText(this);
-        passwordInput.setSingleLine(true);
-        passwordInput.setHint("Password");
-        passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        box.addView(passwordInput, new LinearLayout.LayoutParams(-1, -2));
-
         pairingCodeInput = new EditText(this);
         pairingCodeInput.setSingleLine(true);
         pairingCodeInput.setHint("One-time source pairing code");
@@ -146,6 +134,24 @@ public final class MainActivity extends Activity {
         sourceButton.setText("Choose Wi-Fi source (automatic)");
         sourceButton.setOnClickListener(v -> showSourcePicker());
         box.addView(sourceButton);
+
+        TextView optionalScannerNote = new TextView(this);
+        optionalScannerNote.setText("Optional legacy county Wi-Fi observation feature below; not required for Dream Wi-Fi pairing or VPN.");
+        optionalScannerNote.setTextSize(12);
+        optionalScannerNote.setPadding(0, 18, 0, 4);
+        box.addView(optionalScannerNote);
+
+        emailInput = new EditText(this);
+        emailInput.setSingleLine(true);
+        emailInput.setHint("Optional county-scanner account email");
+        emailInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        box.addView(emailInput, new LinearLayout.LayoutParams(-1, -2));
+
+        passwordInput = new EditText(this);
+        passwordInput.setSingleLine(true);
+        passwordInput.setHint("Optional county-scanner account password");
+        passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(passwordInput, new LinearLayout.LayoutParams(-1, -2));
 
         Button scannerSignInButton = new Button(this);
         scannerSignInButton.setText("Sign in for county Wi-Fi scanning");

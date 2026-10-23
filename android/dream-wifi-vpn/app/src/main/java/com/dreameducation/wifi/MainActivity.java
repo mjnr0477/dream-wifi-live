@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
     private String selectedSourceId = "";
     private String pendingPairingCode;
     private String pendingSourceToken;
+    private String pendingAccessToken;
     private String pendingSourceId;
     private Double pendingSourceLatitude;
     private Double pendingSourceLongitude;
@@ -142,6 +143,14 @@ public final class MainActivity extends Activity {
         status.setPadding(0, 16, 0, 0);
         box.addView(status);
         setContentView(box);
+        DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
+        if (savedReceiver != null) {
+            pendingAccessToken = savedReceiver.accessToken;
+            pendingPairingCode = "";
+            selectedSourceId = savedReceiver.sourceId;
+            sourceButton.setText(selectedSourceLabel());
+            status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");
+        }
     }
 
     private void connectWithPairingCode() {
@@ -150,11 +159,20 @@ public final class MainActivity extends Activity {
             return;
         }
         String code = pairingCodeInput.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
-        if (code.isEmpty()) {
-            status.setText("Enter the one-time pairing code shown by the source owner's running connector.");
-            return;
+        if (!code.isEmpty()) {
+            pendingPairingCode = code;
+            pendingAccessToken = "";
+            DreamWifiCredentialStore.clearReceiver(this);
+        } else {
+            DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
+            if (savedReceiver == null) {
+                status.setText("Enter the one-time pairing code shown by the source owner's running connector.");
+                return;
+            }
+            pendingAccessToken = savedReceiver.accessToken;
+            pendingPairingCode = "";
+            selectedSourceId = savedReceiver.sourceId;
         }
-        pendingPairingCode = code;
         connectButton.setEnabled(false);
         status.setText("Requesting Android VPN permission and pairing with the selected source…");
         Intent permission = VpnService.prepare(this);
@@ -187,6 +205,16 @@ public final class MainActivity extends Activity {
     }
 
     private void performSourceEnrollment() {
+        DreamWifiCredentialStore.SourceCredentials saved = DreamWifiCredentialStore.loadSource(this);
+        if (saved != null) {
+            pendingSourceId = saved.sourceId;
+            pendingSourceToken = saved.sourceToken;
+            connectButton.setEnabled(true);
+            status.setText("Reusing this phone's encrypted source credential.");
+            startSourceService();
+            return;
+        }
+
         connectButton.setEnabled(false);
         status.setText("Creating a unique standalone source credential…");
         authWorker.execute(() -> {
@@ -197,6 +225,7 @@ public final class MainActivity extends Activity {
                 if (!enrollment.optBoolean("success") || sourceId.isEmpty() || sourceToken.isEmpty()) {
                     throw new Exception(enrollment.optString("error", "Source enrollment failed."));
                 }
+                DreamWifiCredentialStore.saveSource(MainActivity.this, sourceId, sourceToken);
                 runOnUiThread(() -> {
                     pendingSourceId = sourceId;
                     pendingSourceToken = sourceToken;
@@ -332,14 +361,17 @@ public final class MainActivity extends Activity {
     }
 
     private void startVpnService() {
-        if (pendingPairingCode == null || pendingPairingCode.isEmpty()) {
+        boolean hasPairingCode = pendingPairingCode != null && !pendingPairingCode.isEmpty();
+        boolean hasSavedAccessToken = pendingAccessToken != null && !pendingAccessToken.isEmpty();
+        if (!hasPairingCode && !hasSavedAccessToken) {
             connectButton.setEnabled(true);
-            status.setText("Enter the one-time pairing code from the source owner.");
+            status.setText("Enter a fresh one-time source pairing code or resume a saved receiver pairing.");
             return;
         }
         Intent intent = new Intent(this, DreamVpnService.class);
         intent.setAction(DreamVpnService.ACTION_START);
-        intent.putExtra(DreamVpnService.EXTRA_PAIRING_CODE, pendingPairingCode);
+        intent.putExtra(DreamVpnService.EXTRA_PAIRING_CODE, hasPairingCode ? pendingPairingCode : "");
+        intent.putExtra(DreamVpnService.EXTRA_ACCESS_TOKEN, hasSavedAccessToken ? pendingAccessToken : "");
         intent.putExtra(DreamVpnService.EXTRA_SELECTED_SOURCE_ID, selectedSourceId);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);

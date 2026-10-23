@@ -51,6 +51,7 @@ final class DreamWifiRelay {
         void onStatus(String message);
         void onReady();
         void onSources(String[] ids, String[] names);
+        void onReceiverCredential(String sourceId, String accessToken);
     }
 
     private final OkHttpClient http;
@@ -87,10 +88,11 @@ final class DreamWifiRelay {
     private volatile String activeProbeId;
     private volatile StringBuilder activeProbeResponse;
 
-    DreamWifiRelay(String pairingCode, String sourceToken, String sourceId,
+    DreamWifiRelay(String pairingCode, String receiverAccessToken, String sourceToken, String sourceId,
                    boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName,
                    double sourceLatitude, double sourceLongitude, Listener listener) {
         this.pairingCode = pairingCode == null ? "" : pairingCode.trim().toUpperCase(java.util.Locale.ROOT);
+        this.accessToken = receiverAccessToken == null ? "" : receiverAccessToken.trim();
         this.sourceTicket = sourceToken == null ? "" : sourceToken;
         this.sourceId = sourceId == null || sourceId.trim().isEmpty()
                 ? "android-" + UUID.randomUUID().toString().replace("-", "") : sourceId.trim();
@@ -302,6 +304,10 @@ final class DreamWifiRelay {
                     accessToken = message.optString("accessToken", accessToken);
                     pairingCode = "";
                     String pairedSourceId = message.optString("sourceId", "");
+                    if (!accessToken.isEmpty() && !pairedSourceId.isEmpty()) {
+                        Listener current = listener;
+                        if (current != null) current.onReceiverCredential(pairedSourceId, accessToken);
+                    }
                     if (selectedSourceId.isEmpty() && !pairedSourceId.isEmpty()) selectedSourceId = pairedSourceId;
                     ownerReady = true;
                     ownerRetrySeconds = 3;
@@ -378,7 +384,7 @@ final class DreamWifiRelay {
                     String reason = message.optString("error", "authorization failed");
                     status("Owner channel rejected: " + reason);
                     String lowerReason = reason.toLowerCase(java.util.Locale.ROOT);
-                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired")) {
+                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired") || lowerReason.contains("revoked")) {
                         accessToken = "";
                         pairingCode = "";
                         status("Receiver pairing expired or was revoked. Disconnect and enter a fresh source pairing code.");

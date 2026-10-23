@@ -84,12 +84,14 @@ public final class DreamVpnService extends VpnService {
         }
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
+        String receiverAccessToken = intent == null ? "" : intent.getStringExtra(EXTRA_ACCESS_TOKEN);
         String sourceToken = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_TOKEN);
         String enrolledSourceId = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_ID);
         double sourceLatitude = intent == null ? Double.NaN : intent.getDoubleExtra(EXTRA_SOURCE_LATITUDE, Double.NaN);
         double sourceLongitude = intent == null ? Double.NaN : intent.getDoubleExtra(EXTRA_SOURCE_LONGITUDE, Double.NaN);
         if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
-                : pairingCode == null || pairingCode.trim().isEmpty()) {
+                : (pairingCode == null || pairingCode.trim().isEmpty())
+                        && (receiverAccessToken == null || receiverAccessToken.trim().isEmpty())) {
             updateNotification(sourceOnly
                     ? "Source enrollment failed. Publish this phone again to obtain a source credential."
                     : "Enter a valid one-time source pairing code in Dream Wi-Fi.");
@@ -104,12 +106,22 @@ public final class DreamVpnService extends VpnService {
         }
         String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
         Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
-        relay = new DreamWifiRelay(pairingCode, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
+        relay = new DreamWifiRelay(pairingCode, receiverAccessToken, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
                 if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("captive portal redirect detected")) {
                     captivePortalMode = true;
                 } else if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("public internet verified")) {
                     captivePortalMode = false;
+                }
+                if (message != null) {
+                    String normalized = message.toLowerCase(java.util.Locale.ROOT);
+                    if (sourceOnly && normalized.contains("source channel rejected")
+                            && (normalized.contains("not authorized") || normalized.contains("not configured") || normalized.contains("expired"))) {
+                        DreamWifiCredentialStore.clearSource(DreamVpnService.this);
+                    }
+                    if (!sourceOnly && normalized.contains("receiver pairing expired or was revoked")) {
+                        DreamWifiCredentialStore.clearReceiver(DreamVpnService.this);
+                    }
                 }
                 updateNotification(message);
             }
@@ -119,6 +131,13 @@ public final class DreamVpnService extends VpnService {
                 sources.putExtra("ids", ids);
                 sources.putExtra("names", names);
                 sendBroadcast(sources);
+            }
+            @Override public void onReceiverCredential(String pairedSourceId, String accessToken) {
+                try {
+                    DreamWifiCredentialStore.saveReceiver(DreamVpnService.this, pairedSourceId, accessToken);
+                } catch (Exception error) {
+                    updateNotification("Receiver connected, but its session could not be saved securely. Re-pair if the app process restarts.");
+                }
             }
             @Override public void onReady() {
                 if (sourceOnly) return;

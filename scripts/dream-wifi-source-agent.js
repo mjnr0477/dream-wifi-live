@@ -9,6 +9,7 @@ const os = require("node:os");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { WebSocket } = require("ws");
+const readline = require("node:readline");
 const execFileAsync = promisify(execFile);
 
 const tunnelUrl = String(process.env.DREAM_WIFI_TUNNEL_URL || "").trim();
@@ -316,4 +317,16 @@ function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+if (process.stdin.isTTY) {
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
+  terminal.on("line", line => {
+    const command = line.trim().toLowerCase();
+    if (command === "revoke") {
+      send({ type: "revoke-pairings" });
+      console.log("Requested revocation of all receiver pairings for this source.");
+    } else if (command === "help") {
+      console.log("Source commands: revoke (invalidate all receiver pairings), help.");
+    }
+  });
+}
 connect();

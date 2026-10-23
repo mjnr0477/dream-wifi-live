@@ -31,6 +31,9 @@ async function main() {
   const missing = createDreamWifiSupabaseStore({ url: "", serviceKey: "", fetch });
   assert.deepEqual(await missing.initialize(), { configured: false, ready: false, credentials: [], sources: [] });
   assert.equal(missing.ready, false);
+  const partial = createDreamWifiSupabaseStore({ url: "https://example.supabase.co", serviceKey: "", fetch });
+  assert.equal(partial.configured, false);
+  assert.equal(partial.hasAnyConfig, true);
 
   const store = createDreamWifiSupabaseStore({
     url: "https://example.supabase.co/",

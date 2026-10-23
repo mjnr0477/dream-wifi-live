@@ -311,22 +311,9 @@ public final class MainActivity extends Activity {
     }
 
     private String getReceiverHotspotName() {
-        try {
-            if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-            if (wifiManager == null) return "Not exposed to ordinary apps";
-            if (Build.VERSION.SDK_INT >= 30) {
-                android.net.wifi.SoftApConfiguration config = wifiManager.getSoftApConfiguration();
-                if (config != null && config.getSsid() != null && !config.getSsid().trim().isEmpty()) {
-                    return config.getSsid();
-                }
-            } else {
-                android.net.wifi.WifiConfiguration config = wifiManager.getWifiApConfiguration();
-                if (config != null && config.SSID != null && !config.SSID.trim().isEmpty()) return config.SSID;
-            }
-        } catch (Exception restricted) {
-            // Android intentionally restricts hotspot configuration access for ordinary apps on many versions.
-        }
-        return "Not exposed to ordinary apps on this Android version";
+        // Public Android SDKs do not expose the active hotspot SSID consistently to ordinary apps.
+        // Do not use hidden APIs or infer a hotspot name from the local Wi-Fi connection.
+        return "Not exposed to ordinary apps through the supported Android API";
     }
 
     private String selectedSourceLabel() {

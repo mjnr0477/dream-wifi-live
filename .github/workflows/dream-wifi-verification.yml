@@ -14,5 +14,5 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - name: Audit dependencies for high-severity advisories
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - run: npm test

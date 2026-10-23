@@ -69,7 +69,8 @@ async function main() {
     const config = await configResponse.json();
     assert.equal(config.configured, true);
     assert.equal(config.database, false);
-    assert.equal(config.authentication, "public-client");
+    assert.equal(config.authentication, "one-time-source-pairing");
+    assert.equal(config.source_enrollment, true);
 
     const missingLocation = await fetch(base + "/api/wifi/sources");
     assert.equal(missingLocation.status, 400);

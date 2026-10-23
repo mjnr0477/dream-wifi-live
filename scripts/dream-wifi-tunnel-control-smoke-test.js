@@ -42,9 +42,11 @@ async function main() {
     source = new WebSocket(url);
     await waitOpen(source);
     const sourceRegistered = waitMessage(source, m => m.type === "registered");
+    const pairingMessagePromise = waitMessage(source, m => m.type === "pairing-code");
     source.send(JSON.stringify({ type: "register", role: "source", sourceToken: "test-source-secret" }));
-    assert.equal((await sourceRegistered).role, "source");
-    const pairingMessage = await waitMessage(source, m => m.type === "pairing-code");
+    const sourceRegistration = await sourceRegistered;
+    assert.equal(sourceRegistration.role, "source");
+    const pairingMessage = await pairingMessagePromise;
     assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
     assert.equal(pairingMessage.expiresInSeconds, 600);
 
@@ -62,7 +64,7 @@ async function main() {
     owner.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairingMessage.code }));
     const ownerRegistration = await ownerRegistered;
     assert.equal(ownerRegistration.role, "client");
-    assert.equal(ownerRegistration.sourceId, (await waitMessage(source, m => m.type === "registered")).sourceId);
+    assert.equal(ownerRegistration.sourceId, sourceRegistration.sourceId);
     assert.equal(typeof ownerRegistration.accessToken, "string");
     assert.ok(ownerRegistration.accessToken.length >= 40);
 

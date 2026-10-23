@@ -31,7 +31,7 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 - [ ] Confirm no receiver traffic leaks directly when the tunnel is disconnected, the source is unavailable, or the VPN service fails.
 - [ ] Test screen-off/Doze, app backgrounding, Wi-Fi/cellular changes, reboot, force-stop, reconnect, battery optimization, and Android foreground-service behavior.
 - [ ] Confirm tracker status distinguishes connected WebSocket, source-side internet probe, and successful end-to-end receiver traffic.
-- [ ] Verify the Android UI distinguishes the remote source's reported network name, receiver local Wi-Fi name when available, and receiver hotspot name only when Android exposes it; it must not imply the receiver joined the remote Wi-Fi or that hotspot forwarding works.
+- [ ] Verify the Android UI distinguishes the remote source's reported network name, this phone's current Wi-Fi name when available, and receiver hotspot name only when Android exposes it; it must not imply the receiver joined the remote Wi-Fi or that hotspot forwarding works.
 - [ ] Test source sharing only on an authorized network and confirm provider portal/package activation is handled normally.
 - [ ] Test third-phone internet through the receiver phone's hotspot. This feature is not implemented/verified; do not advertise it until proven on supported devices.
 

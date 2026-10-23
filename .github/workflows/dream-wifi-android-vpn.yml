@@ -46,6 +46,21 @@ jobs:
       - name: Build debug APK
         working-directory: android/dream-wifi-vpn
         run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}" :app:assembleDebug
+      - name: Validate signed release APK/AAB with an ephemeral CI-only key
+        working-directory: android/dream-wifi-vpn
+        env:
+          DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/dream-wifi-ci-only.jks"
+          test_password="ci-only-not-for-distribution"
+          trap 'rm -f "$keystore"' EXIT
+          keytool -genkeypair -v -keystore "$keystore" -storepass "$test_password" -keypass "$test_password" -alias dream-wifi-ci -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Dream Wi-Fi CI, OU=CI, O=Dream Wi-Fi, L=Test, ST=Test, C=US"
+          ANDROID_KEYSTORE_PATH="$keystore" \
+          ANDROID_KEYSTORE_PASSWORD="$test_password" \
+          ANDROID_KEY_ALIAS="dream-wifi-ci" \
+          ANDROID_KEY_PASSWORD="$test_password" \
+          gradle --no-daemon -PDREAM_WIFI_BASE_URL="$DREAM_WIFI_BASE_URL" :app:assembleRelease :app:bundleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: dream-wifi-vpn-debug-apk

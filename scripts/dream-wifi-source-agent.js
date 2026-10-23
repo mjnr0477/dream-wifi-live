@@ -1,7 +1,7 @@
 "use strict";
 
-// Authorized source-side connector. It can open public HTTP/HTTPS TCP streams only.
-// This is not a general LAN proxy: private, loopback and link-local destinations are blocked.
+// Authorized source-side connector. It relays validated public TCP and UDP flows.
+// This is not a general LAN proxy: private, loopback, link-local, and special-purpose destinations are blocked.
 const dns = require("node:dns").promises;
 const net = require("node:net");
 const dgram = require("node:dgram");
@@ -9,6 +9,7 @@ const os = require("node:os");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { WebSocket } = require("ws");
+const { isPublicAddress } = require("../product/dream_wifi_public_ip");
 const readline = require("node:readline");
 const execFileAsync = promisify(execFile);
 
@@ -89,30 +90,6 @@ function send(payload) {
 }
 function validId(value) {
   return typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(value);
-}
-function isPublicAddress(address) {
-  const family = net.isIP(address);
-  if (family === 4) {
-    const p = address.split(".").map(Number);
-    if (p.length !== 4 || p.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return false;
-    const [a, b, c] = p;
-    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && (b === 168 || (b === 0 && (c === 0 || c === 2)))) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false;
-    if (a === 203 && b === 0 && c === 113) return false;
-    if (a === 255 && b === 255 && c === 255) return false;
-    return true;
-  }
-  if (family === 6) {
-    const value = address.toLowerCase();
-    if (value.startsWith("::ffff:")) return false;
-    const first = parseInt(value.split(":")[0] || "0", 16);
-    return first >= 0x2000 && first <= 0x3fff && !value.startsWith("2001:db8:");
-  }
-  return false;
 }
 async function resolvePublicHost(host) {
   if (net.isIP(host)) {

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07110d">
+<meta name="robots" content="index,follow">
+<title>Privacy notice · Dream Wi-Fi</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0;line-height:1.7}header,main{width:min(820px,calc(100% - 32px));margin:auto}header{padding:22px 0;border-bottom:1px solid #243b30;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}a{color:#86efac;overflow-wrap:anywhere}main{padding:32px 0 72px}h1{font-size:clamp(2rem,7vw,3.6rem);line-height:1.1;letter-spacing:-.04em}h2{margin-top:30px;font-size:1.2rem}.muted{color:#bac7c0;font-size:.92rem}.notice{padding:14px;border:1px solid #725d2b;background:#211c0e;border-radius:12px;color:#fef3c7}
+</style>
+</head>
+<body>
+<header><strong>DREAM <span style="color:#86efac">WI-FI</span></strong><a href="/">Back to Dream Wi-Fi</a></header>
+<main>
+<p class="muted">Last updated: 23 October 2026</p>
+<h1>Privacy notice</h1>
+<p>This notice describes the current Dream Wi-Fi website and prototype service at <code>dream-wifi-live.onrender.com</code>. Dream Wi-Fi is a standalone project and is not Dream Education. The service is still under testing; do not submit confidential information or rely on it for sensitive traffic.</p>
+<div class="notice"><strong>Location warning:</strong> If you use location search, your coordinates are sent to Dream Wi-Fi to calculate distances to participating sources and to the OpenStreetMap public Overpass service to search mapped public Wi-Fi venues. Your browser may also expose request metadata such as IP address to the hosting and map service providers.</div>
+<h2>Information processed</h2>
+<ul>
+<li><strong>Location coordinates.</strong> When you choose “Detect my location” or search with coordinates, the website uses those coordinates for nearby-source distance calculations and public Wi-Fi map queries. Location permission is optional. You can deny it and avoid location-based search.</li>
+<li><strong>Source device records.</strong> If you enroll a source, the service may store a source identifier, display name, coordinates supplied by the source, and first/last-seen timestamps. Source records are used to list participating devices and calculate distances.</li>
+<li><strong>Authentication secrets.</strong> Source credentials are returned to the enrolling source once. The configured durable store is designed to retain a SHA-256 hash of a source token, not the raw token. Receiver pairing credentials are time-limited and currently held in service memory; receiver sessions expire and may need to be paired again after a service restart.</li>
+<li><strong>Connection and request metadata.</strong> The hosting platform processes network information needed to deliver the service, which can include IP addresses, request paths, timestamps, status codes, and diagnostic logs. Dream Wi-Fi does not control the hosting provider's own log retention. Do not put tokens, pairing codes, passwords, or private data in URLs or support reports.</li>
+<li><strong>Device network details.</strong> The native Android prototype may display a source-reported network name and, when Android permits access, the receiver phone's local Wi-Fi or hotspot name. Do not share network names or screenshots if they reveal private information.</li>
+</ul>
+<h2>Third-party services</h2>
+<ul>
+<li><strong>Render</strong> hosts the web service and may process server/network logs under its own policies.</li>
+<li><strong>Supabase</strong> is configured for durable source-directory and source-credential-hash storage. Data is held in the configured project; do not assume a source has been durably enrolled until the service confirms success.</li>
+<li><strong>OpenStreetMap contributors / Overpass API</strong> provide public map data. A public hotspot lookup sends geographic query coordinates to that service. Its own privacy and usage policies apply.</li>
+</ul>
+<h2>Purpose, sharing, and retention</h2>
+<p>Information is processed to operate source discovery, pairing, relaying, security controls, and troubleshooting. Source-directory and hashed source-credential records may persist until the operator deletes them. Receiver pairing sessions are currently memory-based and normally expire after 24 hours; a backend restart may invalidate them sooner. Hosting-provider logs follow the provider's retention policies, which are not controlled by this project. No advertising profile or sale of personal data is intended by this prototype.</p>
+<h2>Your choices</h2>
+<p>You can deny browser location permission, stop using the service, stop your source connector, and revoke receiver pairings using the available source controls. To ask about access, correction, deletion, or a privacy concern, contact the maintainer through <a href="https://github.com/mjnr0477/dream-wifi-live/issues">the repository issue tracker</a> or <a href="https://github.com/mjnr0477">the maintainer's GitHub profile</a>. The issue tracker is public: do not post personal data, credentials, pairing codes, exact coordinates, or screenshots containing secrets. Use a private contact channel for sensitive requests.</p>
+<h2>Children and sensitive use</h2>
+<p>This prototype is not designed for children to use independently, and it should not be used for sensitive, regulated, or emergency communications. Source owners should only share networks they are authorized to share and should understand the bandwidth, data-plan, and security implications.</p>
+<h2>Changes and limitations</h2>
+<p>This is a project-level notice, not legal advice. The service is under development and some operational controls, retention practices, and physical-device behavior have not yet been fully validated. The notice will need review before broad public release.</p>
+<p class="muted">Related: <a href="/terms.html">Terms and acceptable use</a> · <a href="/support.html">Support and abuse reports</a></p>
+</main>
+</body>
+</html>

@@ -16,10 +16,12 @@ Verify sign-in, source-ticket issuance, VPN permission, Quant portal/package act
 
 ## Configure the standalone service host
 
-Build with the deployed Dream Wi-Fi base URL so the app does not depend on Dream Education:
+Build with the deployed Dream Wi-Fi base URL:
 
 ```sh
 ./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
 ```
 
-The standalone service must be deployed and configured first. Do not use the placeholder host literally. **Important integration blocker:** the current standalone `server.js` does not implement `/api/auth/login`, `/api/auth/refresh`, or `/api/dream-wifi/source-ticket`; therefore this prototype cannot complete sign-in/source-ticket setup against the standalone service yet. Do not install or distribute this APK as a working app. The next implementation step is a standalone, consent-based pairing flow that issues short-lived source/receiver credentials, scopes each receiver to the source that shared its link, and removes the Dream Education account dependency.
+The core VPN flow now uses the standalone `POST /api/dream-wifi/source-enroll` endpoint for source enrollment and a one-time pairing code from the source connector for receiver authorization. It no longer needs Dream Education login or source-ticket endpoints for core VPN operation. The optional county-observation screen still uses the older account-based registry API and is not required for pairing, source sharing, or VPN connection.
+
+**Important release blocker:** source enrollment tokens and receiver pairing sessions are currently held in the running backend's memory. A server restart invalidates them, so the source must enroll again and receivers must pair again. Persistent credential storage and restart recovery must be implemented before production. This prototype has not yet been built or tested on physical devices; do not distribute it as a working app until the Android build, end-to-end relay, background, and hotspot acceptance tests pass.

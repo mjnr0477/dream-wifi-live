@@ -22,7 +22,7 @@
 <li>Use a device connected to a Wi-Fi network with working internet.</li>
 <li>Run the authorized Node source connector, or use the native Android Dream Wi-Fi prototype and tap “Publish this Wi-Fi as a remote source.” The Android prototype has not yet passed physical-device release tests.</li>
 <li>For the Node connector, configure the server-side source token only in the authorized connector environment. The native Android app uses a separate per-source enrollment credential. Never place the legacy shared token in browser code, public links, or GitHub.</li>
-<li>After the source registers, copy the one-time receiver pairing code printed in the Node connector terminal or shown by the Android app and give it only to the person you authorize. The code expires in 10 minutes and can be used once.</li>
+<li>After the source registers, copy the one-time receiver pairing code printed in the Node connector terminal or shown by the Android app and give it only to the person you authorize. The code stays available while the source is online and can be used once. The receiver session remains active until the receiver disconnects or the source revokes pairings.</li>
 <li>To revoke every receiver pairing, type <code>revoke</code> in the Node connector terminal or use the Android app’s “Revoke all receiver pairings” control. Re-authorize the receiver with a new code afterward.</li>
 <li>Keep the device online. When the connector is connected, the source should appear as online in Dream Wi-Fi discovery.</li>
 <li>Stop the connector whenever you want to stop sharing. The relay is limited and is not a full-device VPN.</li>

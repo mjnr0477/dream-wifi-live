@@ -111,6 +111,16 @@ async function main() {
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;
 
+    const revokedOwner = waitMessage(owner, m => m.type === "error" && /revoked/i.test(m.error));
+    source.send(JSON.stringify({ type: "revoke-pairings" }));
+    assert.match((await revokedOwner).error, /revoked/i);
+    const revokedClient = new WebSocket(url);
+    await waitOpen(revokedClient);
+    const revokedDenied = waitMessage(revokedClient, m => m.type === "error");
+    revokedClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.match((await revokedDenied).error, /invalid or expired/i);
+    revokedClient.close();
+
     legacy = new WebSocket(url);
     await waitOpen(legacy);
     const legacyRegistered = waitMessage(legacy, m => m.type === "registered");

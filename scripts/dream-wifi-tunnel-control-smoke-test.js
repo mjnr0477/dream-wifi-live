@@ -144,6 +144,26 @@ async function main() {
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;
 
+    const disconnectedAck = waitMessage(owner, m => m.type === "disconnected");
+    const nextPairingCode = waitMessage(source, m => m.type === "pairing-code");
+    owner.send(JSON.stringify({ type: "disconnect" }));
+    await disconnectedAck;
+    const refreshedPairing = await nextPairingCode;
+    assert.match(refreshedPairing.code, /^[A-F0-9]{12}$/);
+
+    const staleTokenClient = new WebSocket(url);
+    await waitOpen(staleTokenClient);
+    const staleTokenDenied = waitMessage(staleTokenClient, m => m.type === "error");
+    staleTokenClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.match((await staleTokenDenied).error, /invalid or expired/i);
+    staleTokenClient.close();
+
+    owner = new WebSocket(url);
+    await waitOpen(owner);
+    const replacementOwnerRegistered = waitMessage(owner, m => m.type === "registered");
+    owner.send(JSON.stringify({ type: "register", role: "client", pairingCode: refreshedPairing.code }));
+    assert.equal((await replacementOwnerRegistered).role, "client");
+
     const revokedOwner = waitMessage(owner, m => m.type === "error" && /revoked/i.test(m.error));
     source.send(JSON.stringify({ type: "revoke-pairings" }));
     assert.match((await revokedOwner).error, /revoked/i);

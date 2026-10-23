@@ -285,7 +285,7 @@ public final class MainActivity extends Activity {
         networkInfo.setText(
                 "Network details\n"
                 + "Remote source network: " + remote + "\n"
-                + "Receiver local Wi-Fi: " + getReceiverWifiName() + "\n"
+                + "This phone's current Wi-Fi: " + getReceiverWifiName() + "\n"
                 + "Receiver hotspot name: " + getReceiverHotspotName() + "\n"
                 + "Hotspot forwarding: Not implemented/verified. A receiver VPN does not automatically route a third device's traffic."
         );

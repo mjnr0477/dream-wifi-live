@@ -9,7 +9,11 @@ app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 3000);
 const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
 const publicDir = path.join(__dirname, "public");
-const dataDir = path.resolve(process.env.DREAM_WIFI_DATA_DIR || path.join(__dirname, "data"));
+const configuredDataDir = String(process.env.DREAM_WIFI_DATA_DIR || "").trim();
+const dataDir = path.resolve(configuredDataDir || path.join(__dirname, "data"));
+// Explicit operator attestation is required before issuing credentials that must survive restarts.
+// The deployment must mount durable storage at DREAM_WIFI_DATA_DIR before setting this flag.
+const durableStorageReady = process.env.DREAM_WIFI_STORAGE_READY === "true" && Boolean(configuredDataDir);
 const registryFile = path.join(dataDir, "sources.json");
 const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
@@ -69,8 +73,9 @@ app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: true, database: false, authentication: "one-time-source-pairing" }));
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: durableStorageReady, durable_storage_ready: durableStorageReady, database: false, authentication: "one-time-source-pairing" }));
 app.post("/api/dream-wifi/source-enroll", (req, res) => {
+  if (!durableStorageReady) return res.status(503).json({ success: false, error: "Source enrollment is disabled until durable storage is configured and DREAM_WIFI_STORAGE_READY=true is set by the operator." });
   const now = Date.now();
   const key = String(req.ip || req.socket.remoteAddress || "unknown");
   for (const [ip, attempt] of sourceEnrollmentAttempts.entries()) if (attempt.resetAt <= now) sourceEnrollmentAttempts.delete(ip);

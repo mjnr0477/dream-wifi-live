@@ -37,7 +37,7 @@ async function main() {
   });
 
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
-  let source, owner, nonOwner, legacy, nativeSource;
+  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment;
   try {
     source = new WebSocket(url);
     await waitOpen(source);
@@ -146,9 +146,27 @@ async function main() {
     legacy.send(JSON.stringify({ type: "register", role: "source", sourceToken: "test-source-secret", sourceId: "legacy-source", sourceName: "Legacy source" }));
     assert.equal((await legacyRegistered).role, "source");
 
+    const enrollment = wss.enrollSource();
+    assert.ok(enrollment.sourceId);
+    assert.ok(enrollment.sourceToken.length >= 40);
+    spoofedEnrollment = new WebSocket(url);
+    await waitOpen(spoofedEnrollment);
+    const spoofRejected = waitMessage(spoofedEnrollment, m => m.type === "error");
+    spoofedEnrollment.send(JSON.stringify({ type: "register", role: "source", sourceToken: enrollment.sourceToken, sourceId: "somebody-elses-id", sourceName: "Spoofed enrolled source" }));
+    assert.match((await spoofRejected).error, /not authorized/i);
+    spoofedEnrollment.close();
+
+    enrolledSource = new WebSocket(url);
+    await waitOpen(enrolledSource);
+    const enrolledRegistered = waitMessage(enrolledSource, m => m.type === "registered");
+    const enrolledCode = waitMessage(enrolledSource, m => m.type === "pairing-code");
+    enrolledSource.send(JSON.stringify({ type: "register", role: "source", sourceToken: enrollment.sourceToken, sourceId: enrollment.sourceId, sourceName: "Per-source credential test" }));
+    assert.equal((await enrolledRegistered).sourceId, enrollment.sourceId);
+    assert.match((await enrolledCode).code, /^[A-F0-9]{12}$/);
+
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {
-    for (const socket of [source, nativeSource, owner, nonOwner, legacy]) {
+    for (const socket of [source, nativeSource, owner, nonOwner, legacy, enrolledSource, spoofedEnrollment]) {
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
     }
     await new Promise(resolve => wss.close(resolve));

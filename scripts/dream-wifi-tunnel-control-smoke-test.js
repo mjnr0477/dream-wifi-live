@@ -40,8 +40,8 @@ async function main() {
   let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedOwner, restartedServer, restartedWss, failingServer, failingWss;
   try {
     const crossOrigin = new WebSocket(url, { headers: { Origin: "https://evil.example" } });
-    await waitOpen(crossOrigin);
     const crossOriginRejected = waitMessage(crossOrigin, m => m.type === "error");
+    await waitOpen(crossOrigin);
     assert.match((await crossOriginRejected).error, /origin is not allowed/i);
     crossOrigin.close();
 

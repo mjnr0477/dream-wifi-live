@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.location.Location;
 import android.location.LocationManager;
 import android.content.BroadcastReceiver;
@@ -15,6 +16,8 @@ import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.widget.Button;
@@ -43,6 +46,14 @@ public final class MainActivity extends Activity {
     private Button sourceButton;
     private TextView status;
     private TextView networkInfo;
+    private TextView pairingCodeDisplay;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pairingCodeRefresh = new Runnable() {
+        @Override public void run() {
+            refreshPairingCodeDisplay();
+            uiHandler.postDelayed(this, 1500);
+        }
+    };
     private String[] availableSourceIds = new String[0];
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
@@ -65,7 +76,7 @@ public final class MainActivity extends Activity {
                 if (selectedSourceId.isEmpty() && availableSourceIds.length == 1) {
                     selectedSourceId = availableSourceIds[0];
                 }
-                if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                if (sourceButton != null) sourceButton.setText("Share Internet");
                 refreshNetworkInfo();
             } else if (status != null) status.setText(intent.getStringExtra("message"));
         }
@@ -81,98 +92,122 @@ public final class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(28, 32, 28, 24);
+        box.setPadding(24, 28, 24, 24);
+        box.setBackgroundColor(android.graphics.Color.rgb(7, 17, 13));
 
         TextView title = new TextView(this);
-        title.setText("Dream Wi-Fi");
+        title.setText("DREAM WI-FI");
+        title.setTextColor(android.graphics.Color.rgb(134, 239, 172));
         title.setTextSize(28);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         box.addView(title);
 
-        Button dashboardButton = new Button(this);
-        dashboardButton.setText("Open Dream Wi-Fi dashboard");
-        dashboardButton.setOnClickListener(v ->
-                startActivity(new Intent(this, DashboardActivity.class)));
-        box.addView(dashboardButton);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Share a connection. Get online.");
+        subtitle.setTextColor(android.graphics.Color.rgb(226, 232, 240));
+        subtitle.setTextSize(16);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 6, 0, 22);
+        box.addView(subtitle);
 
-        TextView note = new TextView(this);
-        note.setText("Standalone Dream Wi-Fi: enter the one-time pairing code supplied by the source owner to connect this phone through that source. Source publishing uses a separate enrollment step. Any provider captive portal or package/payment login must still be completed normally.");
-        note.setTextSize(15);
-        note.setPadding(0, 18, 0, 18);
-        box.addView(note);
+        TextView shareHeading = new TextView(this);
+        shareHeading.setText("SHARE INTERNET");
+        shareHeading.setTextColor(android.graphics.Color.rgb(134, 239, 172));
+        shareHeading.setTextSize(13);
+        shareHeading.setTypeface(null, android.graphics.Typeface.BOLD);
+        box.addView(shareHeading);
+
+        TextView shareHelp = new TextView(this);
+        shareHelp.setText("Connect to Wi-Fi with working internet, then start sharing. Your code stays available while sharing is online; give it only to the person you authorize.");
+        shareHelp.setTextColor(android.graphics.Color.rgb(203, 213, 225));
+        shareHelp.setTextSize(14);
+        shareHelp.setPadding(0, 6, 0, 10);
+        box.addView(shareHelp);
+
+        sourceButton = new Button(this);
+        sourceButton.setText("Share Internet");
+        styleButton(sourceButton, true);
+        sourceButton.setOnClickListener(v -> enrollAndStartSource());
+        box.addView(sourceButton, new LinearLayout.LayoutParams(-1, -2));
+
+        pairingCodeDisplay = new TextView(this);
+        pairingCodeDisplay.setText("Your code will appear here when sharing is ready.");
+        pairingCodeDisplay.setTextColor(android.graphics.Color.WHITE);
+        pairingCodeDisplay.setTextSize(22);
+        pairingCodeDisplay.setTypeface(null, android.graphics.Typeface.BOLD);
+        pairingCodeDisplay.setGravity(Gravity.CENTER);
+        pairingCodeDisplay.setPadding(8, 14, 8, 14);
+        box.addView(pairingCodeDisplay, new LinearLayout.LayoutParams(-1, -2));
+
+        Button shareCodeButton = new Button(this);
+        shareCodeButton.setText("Share Pairing Code");
+        styleButton(shareCodeButton, false);
+        shareCodeButton.setOnClickListener(v -> sharePairingCode());
+        box.addView(shareCodeButton, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView receiveHeading = new TextView(this);
+        receiveHeading.setText("RECEIVE INTERNET");
+        receiveHeading.setTextColor(android.graphics.Color.rgb(134, 239, 172));
+        receiveHeading.setTextSize(13);
+        receiveHeading.setTypeface(null, android.graphics.Typeface.BOLD);
+        receiveHeading.setPadding(0, 24, 0, 0);
+        box.addView(receiveHeading);
 
         pairingCodeInput = new EditText(this);
         pairingCodeInput.setSingleLine(true);
-        pairingCodeInput.setHint("One-time source pairing code");
+        pairingCodeInput.setHint("Enter the code from the source phone");
+        pairingCodeInput.setTextColor(android.graphics.Color.WHITE);
+        pairingCodeInput.setHintTextColor(android.graphics.Color.rgb(148, 163, 184));
+        pairingCodeInput.setBackgroundTintList(ColorStateList.valueOf(android.graphics.Color.rgb(74, 222, 128)));
+        pairingCodeInput.setPadding(12, 12, 12, 12);
         pairingCodeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
         box.addView(pairingCodeInput, new LinearLayout.LayoutParams(-1, -2));
 
         connectButton = new Button(this);
-        connectButton.setText("Pair and connect VPN");
+        connectButton.setText("Connect");
+        styleButton(connectButton, true);
         connectButton.setOnClickListener(v -> connectWithPairingCode());
-        box.addView(connectButton);
-
-        Button publishSourceButton = new Button(this);
-        publishSourceButton.setText("Publish this Wi-Fi as a remote source");
-        publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
-        box.addView(publishSourceButton);
-
-        Button revokePairingsButton = new Button(this);
-        revokePairingsButton.setText("Revoke all receiver pairings");
-        revokePairingsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, DreamVpnService.class);
-            intent.setAction(DreamVpnService.ACTION_REVOKE_PAIRINGS);
-            startService(intent);
-            status.setText("Requested receiver pairing revocation. Source sharing must be running for this to take effect.");
-        });
-        box.addView(revokePairingsButton);
-
-        sourceButton = new Button(this);
-        sourceButton.setText("Choose Wi-Fi source (automatic)");
-        sourceButton.setOnClickListener(v -> showSourcePicker());
-        box.addView(sourceButton);
-
-        wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-        networkInfo = new TextView(this);
-        networkInfo.setTextSize(13);
-        networkInfo.setPadding(0, 12, 0, 12);
-        box.addView(networkInfo);
-
-        Button portalButton = new Button(this);
-        portalButton.setText("Open Quant Wi-Fi portal");
-        portalButton.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("http://quant.com/status")));
-            } catch (Exception error) {
-                status.setText("Could not open the Quant portal. Connect to Quant Wi-Fi and visit quant.com/status.");
-            }
-        });
-        box.addView(portalButton);
+        box.addView(connectButton, new LinearLayout.LayoutParams(-1, -2));
 
         Button disconnect = new Button(this);
-        disconnect.setText("Disconnect Dream VPN");
+        disconnect.setText("Disconnect");
+        styleButton(disconnect, false);
         disconnect.setOnClickListener(v -> {
             Intent intent = new Intent(this, DreamVpnService.class);
             intent.setAction(DreamVpnService.ACTION_STOP);
             startService(intent);
-            status.setText("Disconnect requested.");
+            status.setText("Disconnected from Dream Wi-Fi.");
+            refreshPairingCodeDisplay();
         });
-        box.addView(disconnect);
+        box.addView(disconnect, new LinearLayout.LayoutParams(-1, -2));
 
+        Button findWifiButton = new Button(this);
+        findWifiButton.setText("Find Wi-Fi Near Me");
+        styleButton(findWifiButton, false);
+        findWifiButton.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
+        box.addView(findWifiButton, new LinearLayout.LayoutParams(-1, -2));
+
+        networkInfo = new TextView(this);
+        networkInfo.setVisibility(android.view.View.GONE);
         status = new TextView(this);
-        status.setText("Ready. Complete Quant's package/login flow before testing internet.");
+        status.setText("Ready. Choose Share Internet or enter a source code.");
+        status.setTextColor(android.graphics.Color.rgb(203, 213, 225));
         status.setTextSize(14);
-        status.setPadding(0, 16, 0, 0);
+        status.setPadding(0, 14, 0, 0);
         box.addView(status);
-        setContentView(box);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(box);
+        setContentView(scroll);
         refreshNetworkInfo();
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
             pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
-            sourceButton.setText(selectedSourceLabel());
-            status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");
+            connectButton.setText("Reconnect");
+            status.setText("Saved receiver connection available. Tap Reconnect to try again.");
         }
     }
 
@@ -322,6 +357,43 @@ public final class MainActivity extends Activity {
         return "Not exposed to ordinary apps through the supported Android API";
     }
 
+    private void styleButton(Button button, boolean primary) {
+        button.setAllCaps(false);
+        button.setTextSize(15);
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setPadding(14, 12, 14, 12);
+        button.setTextColor(primary ? android.graphics.Color.rgb(5, 46, 22) : android.graphics.Color.rgb(226, 232, 240));
+        button.setBackgroundTintList(ColorStateList.valueOf(primary
+                ? android.graphics.Color.rgb(74, 222, 128)
+                : android.graphics.Color.rgb(32, 56, 43)));
+    }
+
+    private void refreshPairingCodeDisplay() {
+        if (pairingCodeDisplay == null) return;
+        android.content.SharedPreferences prefs = getSharedPreferences(DreamVpnService.PAIRING_CODE_PREFS, MODE_PRIVATE);
+        String code = prefs.getString(DreamVpnService.KEY_PAIRING_CODE, "");
+        long expiresAt = prefs.getLong(DreamVpnService.KEY_PAIRING_CODE_EXPIRES_AT, 0L);
+        if (code != null && code.matches("[A-F0-9]{12}") && expiresAt > System.currentTimeMillis()) {
+            pairingCodeDisplay.setText(code.replaceAll("(.{4})(?=.)", "$1 "));
+        } else {
+            pairingCodeDisplay.setText("Your code will appear here when sharing is ready.");
+        }
+    }
+
+    private void sharePairingCode() {
+        android.content.SharedPreferences prefs = getSharedPreferences(DreamVpnService.PAIRING_CODE_PREFS, MODE_PRIVATE);
+        String code = prefs.getString(DreamVpnService.KEY_PAIRING_CODE, "");
+        long expiresAt = prefs.getLong(DreamVpnService.KEY_PAIRING_CODE_EXPIRES_AT, 0L);
+        if (code == null || !code.matches("[A-F0-9]{12}") || expiresAt <= System.currentTimeMillis()) {
+            status.setText("Start Share Internet and wait for the code to appear before sharing it.");
+            return;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, "Connect to my Dream Wi-Fi source with this pairing code: " + code + "\nOnly use it if I authorized you.");
+        startActivity(Intent.createChooser(send, "Share Dream Wi-Fi code"));
+    }
+
     private String selectedSourceLabel() {
         if (selectedSourceId.isEmpty()) return "Choose Wi-Fi source (automatic)";
         for (int i = 0; i < availableSourceIds.length; i++) {
@@ -340,7 +412,7 @@ public final class MainActivity extends Activity {
                 .setTitle("Available Dream Wi-Fi sources")
                 .setItems(choices, (dialog, which) -> {
                     selectedSourceId = which == 0 ? "" : availableSourceIds[which - 1];
-                    if (sourceButton != null) sourceButton.setText(selectedSourceLabel());
+                    if (sourceButton != null) sourceButton.setText("Share Internet");
                     refreshNetworkInfo();
                     Intent intent = new Intent(this, DreamVpnService.class);
                     intent.setAction(DreamVpnService.ACTION_SELECT_SOURCE);
@@ -469,9 +541,12 @@ public final class MainActivity extends Activity {
             networkReceiverRegistered = true;
         }
         refreshNetworkInfo();
+        uiHandler.removeCallbacks(pairingCodeRefresh);
+        uiHandler.post(pairingCodeRefresh);
     }
 
     @Override protected void onPause() {
+        uiHandler.removeCallbacks(pairingCodeRefresh);
         if (statusReceiverRegistered) {
             unregisterReceiver(statusReceiver);
             statusReceiverRegistered = false;
@@ -484,6 +559,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        uiHandler.removeCallbacks(pairingCodeRefresh);
         authWorker.shutdownNow();
         super.onDestroy();
     }

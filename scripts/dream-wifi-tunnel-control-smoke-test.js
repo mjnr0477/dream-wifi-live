@@ -54,7 +54,8 @@ async function main() {
     assert.equal(sourceRegistration.role, "source");
     const pairingMessage = await pairingMessagePromise;
     assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
-    assert.equal(pairingMessage.expiresInSeconds, 600);
+    assert.equal(pairingMessage.expiresInSeconds, 0, "Pairing codes must not expire on a timer while the source is online.");
+    assert.ok(pairingMessage.expiresAt > Date.now() + 365 * 24 * 60 * 60 * 1000);
     source.send(JSON.stringify({ type: "source-health", ready: true, checkedAt: new Date().toISOString() }));
 
     nonOwner = new WebSocket(url);
@@ -142,6 +143,26 @@ async function main() {
     const sourceClosed = waitMessage(source, m => m.type === "tcp-close" && m.id === "test-stream-1");
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;
+
+    const disconnectedAck = waitMessage(owner, m => m.type === "disconnected");
+    const nextPairingCode = waitMessage(source, m => m.type === "pairing-code");
+    owner.send(JSON.stringify({ type: "disconnect" }));
+    await disconnectedAck;
+    const refreshedPairing = await nextPairingCode;
+    assert.match(refreshedPairing.code, /^[A-F0-9]{12}$/);
+
+    const staleTokenClient = new WebSocket(url);
+    await waitOpen(staleTokenClient);
+    const staleTokenDenied = waitMessage(staleTokenClient, m => m.type === "error");
+    staleTokenClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
+    assert.match((await staleTokenDenied).error, /invalid or expired/i);
+    staleTokenClient.close();
+
+    owner = new WebSocket(url);
+    await waitOpen(owner);
+    const replacementOwnerRegistered = waitMessage(owner, m => m.type === "registered");
+    owner.send(JSON.stringify({ type: "register", role: "client", pairingCode: refreshedPairing.code }));
+    assert.equal((await replacementOwnerRegistered).role, "client");
 
     const revokedOwner = waitMessage(owner, m => m.type === "error" && /revoked/i.test(m.error));
     source.send(JSON.stringify({ type: "revoke-pairings" }));

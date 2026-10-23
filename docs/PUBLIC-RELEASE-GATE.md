@@ -45,8 +45,10 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 
 ## Current verified facts
 
-- Backend automated workflow and Android debug build succeeded on commit `81369114464a1016d4ab9d4f6cad9ba8e26065b8`.
-- The working branch has since received documentation-only updates; rerun CI on the latest branch head before release.
-- Render blueprint currently uses the free plan and has no configured persistent disk. No production deployment update is asserted here.
-- No physical-device end-to-end tests have been completed in this repository.
+- Backend verification passed on commit `3e05a8712414da6661ac4cf16d8f99ccc6e155f9`, including the hotspot provider fallback tests.
+- The latest Android debug build workflow for that commit is still being checked; do not treat it as passed until GitHub Actions reports success.
+- The public hotspot lookup now tries five Overpass endpoints instead of three. This change is on the working branch only; it has not been deployed to Render or confirmed to restore live map results.
+- The Render production service is live on `main` at `f50107eddef6a276ec922ddf090065d2154da78d`. Its latest deployment logs reported all three original Overpass providers timing out or returning HTTP 504.
+- Render blueprint uses the free plan and has no configured persistent disk. No paid upgrade or production deployment change has been made.
+- No physical-device end-to-end acceptance tests have been completed.
 - The debug APK is a test artifact, not a production-signed release.

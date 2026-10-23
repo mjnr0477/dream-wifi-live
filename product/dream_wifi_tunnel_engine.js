@@ -13,6 +13,11 @@ const MAX_UDP_DATAGRAM_BYTES = 8192;
 const UDP_IDLE_TIMEOUT_MS = 60000;
 const MAX_WS_BUFFERED_BYTES = 1024 * 1024;
 const PING_TIMEOUT_MS = 5000;
+const PAIRING_CODE_TTL_MS = 10 * 60 * 1000;
+const PAIRING_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const pairingCodes = new Map();
+const pairingTokens = new Map();
+const pairingAttempts = new Map();
 
 function safeEqual(left, right) {
   const a = Buffer.from(String(left || ""), "utf8");
@@ -71,24 +76,37 @@ function attachDreamWifiTunnel(server, options = {}) {
   }
   function sourceListForOwner(ownerSocket) {
     const result = [];
-    for (const source of sources.values()) {
-      if (source.dreamSourceOwnerId && source.dreamSourceOwnerId !== ownerSocket.dreamOwnerId) continue;
-      result.push(sourceDetails(source));
-    }
+    if (!ownerSocket.dreamSourceId) return result;
+    const source = sources.get(ownerSocket.dreamSourceId);
+    if (source) result.push(sourceDetails(source));
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }
   function resolveSourceForOwner(ownerSocket, sourceId) {
-    if (sourceId !== undefined && sourceId !== null && String(sourceId).trim()) {
-      const selected = sources.get(String(sourceId));
-      if (!selected || selected.readyState !== WebSocket.OPEN ||
-          (selected.dreamSourceOwnerId && selected.dreamSourceOwnerId !== ownerSocket.dreamOwnerId)) return null;
-      return selected;
-    }
-    return sourceListForOwner(ownerSocket).map(item => sources.get(item.id)).find(Boolean) || null;
+    const requestedId = sourceId === undefined || sourceId === null || !String(sourceId).trim()
+      ? ownerSocket.dreamSourceId : String(sourceId);
+    if (!ownerSocket.dreamSourceId || requestedId !== ownerSocket.dreamSourceId) return null;
+    const selected = sources.get(requestedId);
+    return selected && selected.readyState === WebSocket.OPEN ? selected : null;
   }
   function sourceAuthKind(candidate) {
     const supplied = String(candidate || "");
     return sourceToken && safeEqual(supplied, sourceToken) ? { kind: "static", ownerId: null } : null;
+  }
+  function hashCredential(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
+  function issuePairingCode(sourceSocket) {
+    const code = crypto.randomBytes(6).toString("hex").toUpperCase();
+    const expiresAt = Date.now() + PAIRING_CODE_TTL_MS;
+    pairingCodes.set(hashCredential(code), { sourceId: sourceSocket.dreamSourceId, expiresAt });
+    send(sourceSocket, { type: "pairing-code", code, expiresAt, expiresInSeconds: PAIRING_CODE_TTL_MS / 1000 });
+  }
+  function registerOwner(socket, sourceId, accessToken) {
+    socket.dreamRole = "owner";
+    socket.dreamSourceId = sourceId;
+    socket.dreamOwnerId = crypto.randomUUID();
+    owners.add(socket);
+    send(socket, { type: "registered", role: "client", sourceId, accessToken });
+    send(socket, { type: "source-state", connected: sourceListForOwner(socket).length > 0 });
+    send(socket, { type: "source-list", sources: sourceListForOwner(socket) });
   }
   function broadcastSourceState() {
     for (const owner of owners) {
@@ -190,7 +208,7 @@ function attachDreamWifiTunnel(server, options = {}) {
           socket.dreamSourceId = sourceId;
           socket.dreamSourceName = sourceName;
           socket.dreamSourceAuth = sourceAuth.kind;
-          socket.dreamSourceOwnerId = sourceAuth.ownerId;
+          socket.dreamSourceOwnerId = sourceAuth.ownerId || sourceId;
           socket.dreamSourceConnectedAt = new Date().toISOString();
           socket.dreamSourceLatitude = Number.isFinite(Number(message.latitude)) && message.latitude !== null && message.latitude !== "" && Number(message.latitude) >= -90 && Number(message.latitude) <= 90 ? Number(message.latitude) : null;
           socket.dreamSourceLongitude = Number.isFinite(Number(message.longitude)) && message.longitude !== null && message.longitude !== "" && Number(message.longitude) >= -180 && Number(message.longitude) <= 180 ? Number(message.longitude) : null;
@@ -206,21 +224,70 @@ function attachDreamWifiTunnel(server, options = {}) {
           socket.dreamRole = "source";
           sources.set(sourceId, socket);
           send(socket, { type: "registered", role: "source", sourceId, sourceName });
+          issuePairingCode(socket);
           broadcastSourceState();
           return;
         }
 
         if (message.role === "client" || message.role === "owner") {
           if (socket.readyState !== WebSocket.OPEN) return;
-          socket.dreamRole = "owner";
-          socket.dreamOwnerId = null;
-          owners.add(socket);
-          send(socket, { type: "registered", role: "client" });
-          send(socket, { type: "source-state", connected: sourceListForOwner(socket).length > 0 });
-          send(socket, { type: "source-list", sources: sourceListForOwner(socket) });
+          const now = Date.now();
+          const remote = socket.dreamRemoteIp;
+          const attempt = pairingAttempts.get(remote) || { count: 0, resetAt: now + 10 * 60 * 1000 };
+          if (attempt.resetAt <= now) { attempt.count = 0; attempt.resetAt = now + 10 * 60 * 1000; }
+          if (attempt.count >= 20) { reject(socket, "Too many pairing attempts. Wait ten minutes and retry."); return; }
+
+          const suppliedToken = typeof message.accessToken === "string" ? message.accessToken : "";
+          if (suppliedToken) {
+            const tokenHash = hashCredential(suppliedToken);
+            const credential = pairingTokens.get(tokenHash);
+            if (!credential || credential.expiresAt <= now || !sources.has(credential.sourceId)) {
+              pairingTokens.delete(tokenHash);
+              reject(socket, "Pairing session is invalid or expired. Enter a fresh source pairing code.");
+              return;
+            }
+            registerOwner(socket, credential.sourceId, suppliedToken);
+            return;
+          }
+
+          const suppliedCode = typeof message.pairingCode === "string" ? message.pairingCode.trim().toUpperCase() : "";
+          const codeHash = suppliedCode ? hashCredential(suppliedCode) : "";
+          const pairing = codeHash ? pairingCodes.get(codeHash) : null;
+          if (!pairing || pairing.expiresAt <= now || !sources.has(pairing.sourceId)) {
+            attempt.count += 1;
+            pairingAttempts.set(remote, attempt);
+            reject(socket, "A valid, unexpired pairing code from an online source is required.");
+            return;
+          }
+          pairingCodes.delete(codeHash);
+          const accessToken = crypto.randomBytes(32).toString("base64url");
+          pairingTokens.set(hashCredential(accessToken), {
+            sourceId: pairing.sourceId,
+            expiresAt: now + PAIRING_TOKEN_TTL_MS,
+            createdAt: now
+          });
+          pairingAttempts.delete(remote);
+          registerOwner(socket, pairing.sourceId, accessToken);
           return;
         }
         reject(socket, "Unsupported endpoint role.");
+        return;
+      }
+
+      if (socket.dreamRole === "source" && message.type === "revoke-pairings") {
+        for (const [tokenHash, credential] of pairingTokens.entries()) {
+          if (credential.sourceId === socket.dreamSourceId) pairingTokens.delete(tokenHash);
+        }
+        for (const owner of [...owners]) {
+          if (owner.dreamSourceId === socket.dreamSourceId) {
+            closeStreamsFor(owner, "pairing-revoked");
+            reject(owner, "The source revoked this pairing. Pair again to reconnect.");
+          }
+        }
+        for (const [codeHash, pairing] of pairingCodes.entries()) {
+          if (pairing.sourceId === socket.dreamSourceId) pairingCodes.delete(codeHash);
+        }
+        send(socket, { type: "pairings-revoked", sourceId: socket.dreamSourceId });
         return;
       }
 
@@ -363,6 +430,9 @@ function attachDreamWifiTunnel(server, options = {}) {
       if (remainingForIp) connectionsPerIp.set(socket.dreamRemoteIp, remainingForIp); else connectionsPerIp.delete(socket.dreamRemoteIp);
       if (socket.dreamRole === "source" && sources.get(socket.dreamSourceId) === socket) {
         sources.delete(socket.dreamSourceId);
+        for (const [codeHash, pairing] of pairingCodes.entries()) {
+          if (pairing.sourceId === socket.dreamSourceId) pairingCodes.delete(codeHash);
+        }
         broadcastSourceState();
       }
     });
@@ -371,6 +441,11 @@ function attachDreamWifiTunnel(server, options = {}) {
 
   wss.sourceConnected = sourceConnected;
   wss.getSources = () => [...sources.values()].map(sourceDetails);
+  wss.revokePairingsForSource = sourceId => {
+    const id = String(sourceId || "");
+    for (const [tokenHash, credential] of pairingTokens.entries()) if (credential.sourceId === id) pairingTokens.delete(tokenHash);
+    for (const [codeHash, pairing] of pairingCodes.entries()) if (pairing.sourceId === id) pairingCodes.delete(codeHash);
+  };
   return wss;
 }
 

@@ -6,32 +6,7 @@ while (dreamWifiBaseUrl.endsWith("/")) { dreamWifiBaseUrl = dreamWifiBaseUrl.sub
 dependencies {
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
-android {
-    buildFeatures { buildConfig true }
-    namespace "com.dreameducation.wifi"
-    compileSdk 35
-    defaultConfig {
-        applicationId "com.dreameducation.wifi"
-        minSdk 26
-        targetSdk 35
-        versionCode 1
-        versionName "0.1.0"
-        buildConfigField "String", "DREAM_WIFI_BASE_URL", "\"${dreamWifiBaseUrl}\""
-        ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
-        externalNativeBuild { ndkBuild { arguments "APP_PLATFORM=android-26" } }
-    }
-    externalNativeBuild {
-        ndkBuild {
-            path file("hev-socks5-tunnel/Android.mk")
-        }
-    }
-    ndkVersion "27.2.12479018"
-}
-, '')
 
-dependencies {
-    implementation "com.squareup.okhttp3:okhttp:4.12.0"
-}
 android {
     buildFeatures { buildConfig true }
     namespace "com.dreameducation.wifi"
@@ -42,7 +17,7 @@ android {
         targetSdk 35
         versionCode 1
         versionName "0.1.0"
-        buildConfigField "String", "DREAM_WIFI_BASE_URL", "\"${dreamWifiBaseUrl}\""
+        buildConfigField "String", "DREAM_WIFI_BASE_URL", "\"\${dreamWifiBaseUrl}\""
         ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
         externalNativeBuild { ndkBuild { arguments "APP_PLATFORM=android-26" } }
     }

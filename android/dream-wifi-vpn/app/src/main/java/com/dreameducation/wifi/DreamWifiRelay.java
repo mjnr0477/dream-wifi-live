@@ -58,6 +58,8 @@ final class DreamWifiRelay {
     private final Network sourceNetwork;
     private final Network controlNetwork;
     private final String sourceName;
+    private final double sourceLatitude;
+    private final double sourceLongitude;
     private final ExecutorService workers = Executors.newCachedThreadPool();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ConcurrentHashMap<String, Stream> ownerStreams = new ConcurrentHashMap<>();
@@ -86,7 +88,8 @@ final class DreamWifiRelay {
     private volatile StringBuilder activeProbeResponse;
 
     DreamWifiRelay(String pairingCode, String sourceToken, String sourceId,
-                   boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName, Listener listener) {
+                   boolean sourceOnly, Network sourceNetwork, Network controlNetwork, String sourceName,
+                   double sourceLatitude, double sourceLongitude, Listener listener) {
         this.pairingCode = pairingCode == null ? "" : pairingCode.trim().toUpperCase(java.util.Locale.ROOT);
         this.sourceTicket = sourceToken == null ? "" : sourceToken;
         this.sourceId = sourceId == null || sourceId.trim().isEmpty()
@@ -96,6 +99,8 @@ final class DreamWifiRelay {
         this.controlNetwork = controlNetwork;
         this.sourceName = sourceName == null || sourceName.trim().isEmpty()
                 ? "Android " + android.os.Build.MODEL : sourceName.trim();
+        this.sourceLatitude = sourceLatitude;
+        this.sourceLongitude = sourceLongitude;
         OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .pingInterval(25, TimeUnit.SECONDS)
                 .connectTimeout(15, TimeUnit.SECONDS)
@@ -411,10 +416,14 @@ final class DreamWifiRelay {
             @Override public void onOpen(WebSocket webSocket, Response response) {
                 if (!running.get()) { webSocket.close(1000, "stopped"); return; }
                 sourceSocket = webSocket;
-                webSocket.send(new SafeJson().putSafe("type", "register")
+                SafeJson registration = new SafeJson().putSafe("type", "register")
                         .putSafe("role", "source").putSafe("sourceToken", sourceTicket)
-                        .putSafe("sourceId", sourceId)
-                        .putSafe("sourceName", sourceName).toString());
+                        .putSafe("sourceId", sourceId).putSafe("sourceName", sourceName);
+                if (Double.isFinite(sourceLatitude) && sourceLatitude >= -90 && sourceLatitude <= 90
+                        && Double.isFinite(sourceLongitude) && sourceLongitude >= -180 && sourceLongitude <= 180) {
+                    registration.putSafe("latitude", sourceLatitude).putSafe("longitude", sourceLongitude);
+                }
+                webSocket.send(registration.toString());
                 status(sourceOnly ? "Authenticating Wi-Fi source tunnel…" : "Authenticating remote Wi-Fi source…");
             }
             @Override public void onMessage(WebSocket webSocket, String text) {

@@ -161,7 +161,7 @@ function handleLocalSocket(local) {
           udp.bind(0, '127.0.0.1', () => { const addr = udp.address(); local.write(Buffer.from([5, 0, 0, 1, 127, 0, 0, 1, (addr.port >> 8) & 255, addr.port & 255])); state = 'udp'; });
           return;
         }
-        if (!host || host.includes(' ') || host.includes('/') || ![80, 443].includes(targetPort)) {
+        if (!host || host.includes(' ') || host.includes('/') || !Number.isInteger(targetPort) || targetPort < 1 || targetPort > 65535) {
           local.end(Buffer.from([5, 2, 0, 1, 0, 0, 0, 0, 0, 0]));
           return;
         }
@@ -207,7 +207,7 @@ function startProxy() {
   });
   proxyServer.listen(port, "127.0.0.1", () => {
     console.log("Dream Tunnel SOCKS5 proxy listening on 127.0.0.1:" + port);
-    console.log("TCP is limited to ports 80/443; UDP datagrams are capped at 8 KiB and public destinations only.");
+    console.log("TCP and UDP support valid destination ports; UDP datagrams are capped at 8 KiB and public destinations only.");
   });
 }
 

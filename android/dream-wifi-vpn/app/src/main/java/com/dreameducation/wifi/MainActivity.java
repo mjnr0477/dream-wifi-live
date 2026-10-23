@@ -62,8 +62,6 @@ public final class MainActivity extends Activity {
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
     private String pendingAccessToken;
-    private String pendingRefreshToken;
-    private String pendingSourceTicket;
     private String pendingPairingCode;
     private String pendingSourceToken;
     private String pendingSourceId;
@@ -278,7 +276,6 @@ public final class MainActivity extends Activity {
                 }
                 runOnUiThread(() -> {
                     pendingAccessToken = accessToken;
-                    pendingRefreshToken = refreshToken;
                     passwordInput.setText("");
                     status.setText("Signed in for county scanning. You can now scan and report nearby Wi-Fi.");
                 });

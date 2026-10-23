@@ -28,6 +28,7 @@ public final class DreamVpnService extends VpnService {
     public static final String ACTION_START = "com.dreameducation.wifi.START";
     public static final String ACTION_STOP = "com.dreameducation.wifi.STOP";
     public static final String ACTION_SELECT_SOURCE = "com.dreameducation.wifi.SELECT_SOURCE";
+    public static final String ACTION_REVOKE_PAIRINGS = "com.dreameducation.wifi.REVOKE_PAIRINGS";
     static final String ACTION_SOURCES = "com.dreameducation.wifi.SOURCES";
     public static final String EXTRA_SELECTED_SOURCE_ID = "dream_wifi_selected_source_id";
     public static final String EXTRA_ACCESS_TOKEN = "dream_wifi_access_token";
@@ -68,7 +69,13 @@ public final class DreamVpnService extends VpnService {
             stopSelf();
             return START_NOT_STICKY;
         }
-        startForeground(ID, notification("Connecting to Dream Tunnel and Quant…"));
+        if (ACTION_REVOKE_PAIRINGS.equals(action)) {
+            DreamWifiRelay current = relay;
+            if (current != null) current.revokePairings();
+            else updateNotification("Start source sharing before revoking receiver pairings.");
+            return START_STICKY;
+        }
+        startForeground(ID, notification("Connecting to Dream Tunnel…"));
         if (relay != null) {
             updateNotification("Dream Wi-Fi is already connecting or running.");
             return START_NOT_STICKY;

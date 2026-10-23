@@ -249,7 +249,12 @@ function connect() {
     try { message = JSON.parse(raw.toString("utf8")); } catch (_) { return; }
     if (message.type === "registered" && message.role === "source") {
       reconnectDelayMs = 5000;
-      console.log("Dream Tunnel source authenticated; public HTTP/HTTPS relay is ready for owner-authorized tests.");
+      console.log("Dream Tunnel source authenticated; relay is waiting for an authorized receiver pairing.");
+    } else if (message.type === "pairing-code" && typeof message.code === "string") {
+      console.log("\\nDream Wi-Fi receiver pairing code: " + message.code);
+      console.log("Give this code only to the receiver you authorize. It expires in " + Math.ceil(Number(message.expiresInSeconds || 600) / 60) + " minutes and can be used once.\\n");
+    } else if (message.type === "pairings-revoked") {
+      console.log("All receiver pairings for this source have been revoked.");
     } else if (message.type === "ping" && typeof message.id === "string") {
       send({ type: "pong", id: message.id });
     } else if (message.type === "tcp-open") {

@@ -34,6 +34,6 @@ Build with the deployed Dream Wi-Fi base URL:
 ./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
 ```
 
-The core VPN flow uses standalone source enrollment and one-time source pairing; it does not require Dream Education login or source-ticket endpoints. The current Render service must be deployed with the matching standalone backend before the APK can work against it. The working branch's APK build does not mean that the live Render deployment has been updated.
+The core VPN flow uses standalone source enrollment and one-time source pairing; it does not require Dream Education login or source-ticket endpoints. Before each release, confirm the APK's `DREAM_WIFI_BASE_URL` matches the production backend and that the exact backend commit is live. A successful APK build alone does not prove runtime compatibility.
 
-**Release status:** not ready for public distribution until durable-storage behavior is configured, backend and app deployments are aligned, and the physical-device acceptance tests above pass. Keep PR #17 in draft until those gates are met.
+**Release status:** not ready for public distribution until live source enrollment and restart recovery, backend/app version alignment, signed release packaging, and all physical-device acceptance tests above pass. Keep release work blocked until those gates have dated evidence.

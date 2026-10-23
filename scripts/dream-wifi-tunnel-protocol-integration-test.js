@@ -88,6 +88,14 @@ async function main() {
 
     await rejectedPairing(url, "NOT-A-VALID-CODE", "invalid pairing code rejection");
 
+    const originalNow = Date.now;
+    try {
+      Date.now = () => originalNow() + 11 * 60 * 1000;
+      await rejectedPairing(url, pairing.code, "expired pairing code rejection");
+    } finally {
+      Date.now = originalNow;
+    }
+
     owner = connect(url);
     await waitOpen(owner);
     owner.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));

@@ -11,6 +11,7 @@ Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCK
 - Receiver pairing codes and active receiver sessions are held in backend memory. The Android app encrypts the receiver access token in Android Keystore and can resume it after an app-process restart, but a backend restart invalidates the in-memory session and requires a fresh source pairing code. The app-resume behavior still needs physical-device acceptance testing.
 - Background operation, reconnect after network changes, screen-off behavior, traffic-leak prevention, and end-to-end receiver browsing have not been verified on physical devices.
 - Downstream hotspot/tethering for a third phone is not implemented or verified. Android tethering traffic generally requires additional routing and device/OS support beyond simply running a VPN on the phone.
+- The Android screen distinguishes the remote source's reported network name from this phone's current Wi-Fi name when Android exposes it. Android may hide the receiver hotspot SSID from ordinary apps; the UI explicitly warns that downstream hotspot forwarding is not implemented/verified.
 - Run the source relay only on a network you are authorized to share. The app does not create internet access where there is no working upstream connection and does not bypass a provider's captive portal, package, or payment controls.
 
 ## Required physical-device acceptance tests

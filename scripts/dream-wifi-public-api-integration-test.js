@@ -53,6 +53,9 @@ async function main() {
       DREAM_WIFI_SOURCE_TOKEN: "integration-test-source-token",
       DREAM_WIFI_DATA_DIR: dataDir,
       DREAM_WIFI_STORAGE_READY: "true",
+      // This test exercises the durable-disk fallback; do not inherit production Supabase credentials.
+      SUPABASE_URL: "",
+      SUPABASE_SERVICE_ROLE_KEY: "",
       NODE_OPTIONS: "--require=" + preload
     },
     stdio: ["ignore", "pipe", "pipe"]

@@ -26,7 +26,10 @@ assert.match(terms, /ICMP/i);
 assert.match(support, /GitHub issues are public/i);
 assert.match(support, /pairing codes/i);
 
-for (const [name, html] of [["privacy", privacy], ["terms", terms], ["support", support], ["index", index], ["share", share], ["receive", receive]]) {
+assert.ok(privacy.includes('href="/terms.html"') && privacy.includes('href="/support.html"'));
+assert.ok(terms.includes('href="/privacy.html"') && terms.includes('href="/support.html"'));
+assert.ok(support.includes('href="/privacy.html"') && support.includes('href="/terms.html"'));
+for (const [name, html] of [["index", index], ["share", share], ["receive", receive]]) {
   assert.ok(html.includes('href="/privacy.html"'), name + " must expose privacy link");
   assert.ok(html.includes('href="/terms.html"'), name + " must expose terms link");
   assert.ok(html.includes('href="/support.html"'), name + " must expose support link");

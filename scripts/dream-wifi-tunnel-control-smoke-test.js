@@ -49,6 +49,7 @@ async function main() {
     const pairingMessage = await pairingMessagePromise;
     assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
     assert.equal(pairingMessage.expiresInSeconds, 600);
+    source.send(JSON.stringify({ type: "source-health", ready: true, checkedAt: new Date().toISOString() }));
 
     nonOwner = new WebSocket(url);
     await waitOpen(nonOwner);
@@ -68,10 +69,14 @@ async function main() {
     owner = new WebSocket(url);
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
+    const ownerSourceList = waitMessage(owner, m => m.type === "source-list");
     owner.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairingMessage.code }));
     const ownerRegistration = await ownerRegistered;
     assert.equal(ownerRegistration.role, "client");
     assert.equal(ownerRegistration.sourceId, sourceRegistration.sourceId);
+    const initialSourceList = await ownerSourceList;
+    assert.equal(initialSourceList.sources.length, 1);
+    assert.equal(initialSourceList.sources[0].internetReady, true);
     assert.equal(typeof ownerRegistration.accessToken, "string");
     assert.ok(ownerRegistration.accessToken.length >= 40);
 

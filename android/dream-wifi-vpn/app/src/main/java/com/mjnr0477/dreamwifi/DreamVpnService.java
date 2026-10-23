@@ -137,15 +137,6 @@ public final class DreamVpnService extends VpnService {
         else startService(restart);
     }
 
-    @Override public void onDestroy() {
-        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        if (networkCallbackRegistered && manager != null && wifiNetworkCallback != null) {
-            try { manager.unregisterNetworkCallback(wifiNetworkCallback); } catch (Exception ignored) {}
-            networkCallbackRegistered = false;
-        }
-        super.onDestroy();
-    }
-
     static { System.loadLibrary("hev-socks5-tunnel"); }
     public native boolean TProxyStartService(String configPath, int fd);
     public native boolean TProxyStopService();
@@ -493,6 +484,11 @@ public final class DreamVpnService extends VpnService {
     }
 
     @Override public void onDestroy() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (networkCallbackRegistered && manager != null && wifiNetworkCallback != null) {
+            try { manager.unregisterNetworkCallback(wifiNetworkCallback); } catch (Exception ignored) {}
+            networkCallbackRegistered = false;
+        }
         stopTunnel();
         super.onDestroy();
     }

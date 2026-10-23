@@ -11,9 +11,33 @@ const sourceToken = String(process.env.DREAM_WIFI_SOURCE_TOKEN || "");
 const publicDir = path.join(__dirname, "public");
 const dataDir = path.resolve(process.env.DREAM_WIFI_DATA_DIR || path.join(__dirname, "data"));
 const registryFile = path.join(dataDir, "sources.json");
+const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
 let knownSources = new Map();
 const sourceEnrollmentAttempts = new Map();
+let enrolledSourceCredentials = [];
+try {
+  const savedCredentials = JSON.parse(fs.readFileSync(sourceCredentialsFile, "utf8"));
+  if (Array.isArray(savedCredentials)) enrolledSourceCredentials = savedCredentials.filter(credential =>
+    credential && typeof credential.sourceId === "string" &&
+    /^[a-zA-Z0-9_-]{1,80}$/.test(credential.sourceId) &&
+    typeof credential.tokenHash === "string" && /^[a-f0-9]{64}$/.test(credential.tokenHash)
+  ).slice(-10000);
+} catch (_) {}
+function saveSourceCredentials(credential) {
+  const byHash = new Map(enrolledSourceCredentials.map(item => [item.tokenHash, item]));
+  byHash.set(credential.tokenHash, credential);
+  enrolledSourceCredentials = [...byHash.values()].slice(-10000);
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    const temp = sourceCredentialsFile + ".tmp";
+    fs.writeFileSync(temp, JSON.stringify(enrolledSourceCredentials), { mode: 0o600 });
+    try { fs.chmodSync(temp, 0o600); } catch (_) {}
+    fs.renameSync(temp, sourceCredentialsFile);
+  } catch (error) {
+    console.error("Could not persist source credentials. Configure DREAM_WIFI_DATA_DIR to a writable persistent disk:", error.code || "write_error");
+  }
+}
 try {
   const saved = JSON.parse(fs.readFileSync(registryFile, "utf8"));
   if (Array.isArray(saved)) for (const source of saved) if (source && source.id) knownSources.set(source.id, source);
@@ -62,7 +86,11 @@ app.post("/api/dream-wifi/source-enroll", (req, res) => {
 });
 app.get("/api/wifi/source-status", (_req, res) => { const sources = dreamWifiTunnel.getSources(); res.json({ success: true, online_count: sources.length, internet_ready_count: sources.filter(source => source.internetReady === true).length, note: "Relay-connected sources and source-side DNS/TCP reachability are separate signals; neither replaces an end-to-end receiver relay test." }); });
 const server = http.createServer(app);
-const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDreamWifiTunnel(server, { sourceToken });
+const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDreamWifiTunnel(server, {
+  sourceToken,
+  enrolledSourceCredentials,
+  onEnrollSource: saveSourceCredentials
+});
 app.get("/api/wifi/sources", (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);
   const longitude = coordinate(req.query.longitude, -180, 180);

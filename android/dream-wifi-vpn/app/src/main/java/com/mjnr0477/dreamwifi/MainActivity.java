@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.location.Location;
 import android.location.LocationManager;
 import android.content.BroadcastReceiver;
@@ -126,6 +127,7 @@ public final class MainActivity extends Activity {
 
         sourceButton = new Button(this);
         sourceButton.setText("Share Internet");
+        styleButton(sourceButton, true);
         sourceButton.setOnClickListener(v -> enrollAndStartSource());
         box.addView(sourceButton, new LinearLayout.LayoutParams(-1, -2));
 
@@ -140,6 +142,7 @@ public final class MainActivity extends Activity {
 
         Button shareCodeButton = new Button(this);
         shareCodeButton.setText("Share Pairing Code");
+        styleButton(shareCodeButton, false);
         shareCodeButton.setOnClickListener(v -> sharePairingCode());
         box.addView(shareCodeButton, new LinearLayout.LayoutParams(-1, -2));
 
@@ -156,16 +159,20 @@ public final class MainActivity extends Activity {
         pairingCodeInput.setHint("Enter the code from the source phone");
         pairingCodeInput.setTextColor(android.graphics.Color.WHITE);
         pairingCodeInput.setHintTextColor(android.graphics.Color.rgb(148, 163, 184));
+        pairingCodeInput.setBackgroundTintList(ColorStateList.valueOf(android.graphics.Color.rgb(74, 222, 128)));
+        pairingCodeInput.setPadding(12, 12, 12, 12);
         pairingCodeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
         box.addView(pairingCodeInput, new LinearLayout.LayoutParams(-1, -2));
 
         connectButton = new Button(this);
         connectButton.setText("Connect");
+        styleButton(connectButton, true);
         connectButton.setOnClickListener(v -> connectWithPairingCode());
         box.addView(connectButton, new LinearLayout.LayoutParams(-1, -2));
 
         Button disconnect = new Button(this);
         disconnect.setText("Disconnect");
+        styleButton(disconnect, false);
         disconnect.setOnClickListener(v -> {
             Intent intent = new Intent(this, DreamVpnService.class);
             intent.setAction(DreamVpnService.ACTION_STOP);
@@ -177,6 +184,7 @@ public final class MainActivity extends Activity {
 
         Button findWifiButton = new Button(this);
         findWifiButton.setText("Find Wi-Fi Near Me");
+        styleButton(findWifiButton, false);
         findWifiButton.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
         box.addView(findWifiButton, new LinearLayout.LayoutParams(-1, -2));
 
@@ -188,7 +196,10 @@ public final class MainActivity extends Activity {
         status.setTextSize(14);
         status.setPadding(0, 14, 0, 0);
         box.addView(status);
-        setContentView(box);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(box);
+        setContentView(scroll);
         refreshNetworkInfo();
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
@@ -344,6 +355,17 @@ public final class MainActivity extends Activity {
         // Public Android SDKs do not expose the active hotspot SSID consistently to ordinary apps.
         // Do not use hidden APIs or infer a hotspot name from the local Wi-Fi connection.
         return "Not exposed to ordinary apps through the supported Android API";
+    }
+
+    private void styleButton(Button button, boolean primary) {
+        button.setAllCaps(false);
+        button.setTextSize(15);
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setPadding(14, 12, 14, 12);
+        button.setTextColor(primary ? android.graphics.Color.rgb(5, 46, 22) : android.graphics.Color.rgb(226, 232, 240));
+        button.setBackgroundTintList(ColorStateList.valueOf(primary
+                ? android.graphics.Color.rgb(74, 222, 128)
+                : android.graphics.Color.rgb(32, 56, 43)));
     }
 
     private void refreshPairingCodeDisplay() {

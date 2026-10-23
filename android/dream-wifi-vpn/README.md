@@ -35,7 +35,7 @@ The repository includes a manually triggered signed APK/AAB workflow. It intenti
 
    ```sh
    keytool -genkeypair -v -keystore dream-wifi-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias dream-wifi-release
-   base64 < dream-wifi-release.jks | tr -d '\\n' > dream-wifi-release.jks.base64
+   base64 < dream-wifi-release.jks | tr -d '\n' > dream-wifi-release.jks.base64
    ```
 
 2. In GitHub repository **Settings → Secrets and variables → Actions**, add these repository secrets:

@@ -63,7 +63,7 @@ async function main() {
     const base = "http://127.0.0.1:" + port;
     const healthResponse = await fetch(base + "/healthz", { signal: AbortSignal.timeout(5000) });
     assert.equal(healthResponse.status, 200);
-    assert.deepEqual(await healthResponse.json(), { ok: true, service: "dream-wifi-live", database: false });
+    assert.deepEqual(await healthResponse.json(), { ok: true, service: "dream-wifi-live", database: false, durable_storage_ready: true });
 
     const configResponse = await fetch(base + "/api/dream-wifi/config");
     assert.equal(configResponse.status, 200);

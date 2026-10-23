@@ -342,11 +342,17 @@ function attachDreamWifiTunnel(server, options = {}) {
       }
 
       if (socket.dreamRole === "owner" && message.type === "disconnect") {
-        if (socket.dreamPairingTokenHash) pairingTokens.delete(socket.dreamPairingTokenHash);
-        closeStreamsFor(socket, "receiver-disconnected");
-        owners.delete(socket);
-        send(socket, { type: "disconnected", sourceId: socket.dreamSourceId });
-        try { socket.close(1000, "Receiver disconnected"); } catch (_) {}
+        const tokenHash = socket.dreamPairingTokenHash;
+        if (tokenHash) pairingTokens.delete(tokenHash);
+        for (const owner of [...owners]) {
+          if (owner.dreamPairingTokenHash !== tokenHash) continue;
+          closeStreamsFor(owner, "receiver-disconnected");
+          owners.delete(owner);
+          send(owner, { type: "disconnected", sourceId: owner.dreamSourceId });
+          try { owner.close(1000, "Receiver disconnected"); } catch (_) {}
+        }
+        const source = sources.get(socket.dreamSourceId);
+        if (source) issuePairingCode(source);
         return;
       }
 

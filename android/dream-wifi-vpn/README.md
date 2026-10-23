@@ -2,17 +2,29 @@
 
 Native Android `VpnService` plus the upstream HevSocks5Tunnel native TUN-to-SOCKS engine. The core VPN flow uses standalone one-time receiver pairing and per-source enrollment credentials; it does not require Dream Education sign-in. The app starts a loopback SOCKS5 relay on `127.0.0.1:1081`. The app package is excluded from VPN routing so its own source WebSocket and source-side sockets use the underlying network instead of looping back into the VPN.
 
-## Current limitations
-- The GitHub workflow fetches HevSocks5Tunnel at build time and configures its JNI class for this app. Retain upstream license notices.
-- The relay includes authenticated, size-limited UDP datagram forwarding for public destinations, used by SOCKS5 UDP ASSOCIATE and mapped DNS. TCP remains limited to ports 80 and 443. The owner dashboard includes HTTP and DNS/UDP source-path probes; these verify the relay path, not complete phone routing. UDP support has protocol smoke coverage but is not yet validated on a physical device; compatibility with arbitrary apps is not guaranteed.
-- This source has not yet been built, installed, or tested on a physical Android device. Do not distribute or advertise full-device coverage until device tests pass.
-- Run the source agent only on a network you are authorized to use. Software cannot create Wi-Fi signal or internet access without a real transport path.
-- The standalone backend issues source credentials through `POST /api/dream-wifi/source-enroll`; only SHA-256 hashes are persisted. Restart recovery requires `DREAM_WIFI_DATA_DIR` on durable writable storage. Receiver pairing codes and receiver sessions are in memory and receivers must pair again after a backend restart.
-- Native SOCKS relay supports TCP ports 80/443 and DNS UDP port 53 only. The Quant captive portal/package/payment flow must be completed by the user; this app does not bypass provider access controls.
+## Current implementation and limitations
 
-## Test
-Verify source enrollment, one-time pairing, VPN permission, Quant portal/package activation, real HTTPS browsing, DNS, disconnect/reconnect after network changes, screen-off behavior, and traffic leakage on physical Android devices. TCP ports other than 80/443 and UDP ports other than DNS/53 remain blocked.
+- The Android debug APK builds successfully in GitHub Actions. A successful build confirms compilation only; this app has not yet been installed and acceptance-tested on physical Android devices.
+- The GitHub workflow fetches HevSocks5Tunnel at build time and pins its upstream commit. Retain upstream license notices.
+- The relay supports TCP destinations on ports 80 and 443 and UDP DNS on port 53. Other TCP/UDP ports are intentionally not supported by the current implementation, so compatibility with arbitrary apps is not guaranteed. HTTP/DNS dashboard probes do not prove complete device routing or absence of traffic leaks.
+- Source enrollment uses `POST /api/dream-wifi/source-enroll`. The server stores source-token SHA-256 hashes under `DREAM_WIFI_DATA_DIR`; restart recovery works only when that directory is writable and backed by durable storage. The current Render blueprint is on the free plan and does not configure a persistent disk, so credentials may be lost after service restarts or redeploys.
+- Receiver pairing codes and receiver sessions are held in memory. Receivers must pair again after a backend restart. Production-grade durable sessions and restart recovery remain outstanding.
+- Background operation, reconnect after network changes, screen-off behavior, traffic-leak prevention, and end-to-end receiver browsing have not been verified on physical devices.
+- Downstream hotspot/tethering for a third phone is not implemented or verified. Android tethering traffic generally requires additional routing and device/OS support beyond simply running a VPN on the phone.
+- Run the source relay only on a network you are authorized to share. The app does not create internet access where there is no working upstream connection and does not bypass a provider's captive portal, package, or payment controls.
 
+## Required physical-device acceptance tests
+
+Before public release, test using at least a source Android phone on the authorized Wi-Fi, a separate receiver Android phone, and a third phone for hotspot testing:
+
+1. Enroll the source and verify that a receiver can pair using a fresh one-time code.
+2. Verify HTTPS pages, DNS resolution, and representative apps from the receiver; confirm unsupported protocols are clearly reported rather than presented as working.
+3. Confirm receiver traffic stops when the source is disconnected or revoked, and resumes after reconnection without unsafe fallback or traffic leakage.
+4. Test network changes, app backgrounding, screen-off/Doze, force-stop/restart, and server restart/redeployment behavior.
+5. Verify source health/tracker status against actual reachability rather than WebSocket connection alone.
+6. Test third-phone access through the receiver's hotspot. Do not advertise this feature until it demonstrably works on supported devices.
+7. Configure durable server storage and validate source credential recovery and session expiry/revocation before production use.
+8. Review privacy disclosures, location consent, abuse/rate limiting, logging, and release signing before distribution.
 
 ## Configure the standalone service host
 
@@ -22,6 +34,6 @@ Build with the deployed Dream Wi-Fi base URL:
 ./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
 ```
 
-The core VPN flow now uses the standalone `POST /api/dream-wifi/source-enroll` endpoint for source enrollment and a one-time pairing code from the source connector for receiver authorization. It no longer needs Dream Education login or source-ticket endpoints for core VPN operation. The previous account-based county-observation UI has been removed from the standalone app. Pairing, source sharing, and VPN connection use the standalone backend.
+The core VPN flow uses standalone source enrollment and one-time source pairing; it does not require Dream Education login or source-ticket endpoints. The current Render service must be deployed with the matching standalone backend before the APK can work against it. The working branch's APK build does not mean that the live Render deployment has been updated.
 
-**Important release blocker:** source enrollment tokens and receiver pairing sessions are currently held in the running backend's memory. A server restart invalidates them, so the source must enroll again and receivers must pair again. Persistent credential storage and restart recovery must be implemented before production. This prototype has not yet been built or tested on physical devices; do not distribute it as a working app until the Android build, end-to-end relay, background, and hotspot acceptance tests pass.
+**Release status:** not ready for public distribution until durable-storage behavior is configured, backend and app deployments are aligned, and the physical-device acceptance tests above pass. Keep PR #17 in draft until those gates are met.

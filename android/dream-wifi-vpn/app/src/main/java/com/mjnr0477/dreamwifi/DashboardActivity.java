@@ -114,7 +114,7 @@ public final class DashboardActivity extends Activity {
                 }
                 return result.toString();
             } catch (org.json.JSONException error) {
-                return "{\\"available\\":false}";
+                return "{}";
             }
         }
     }

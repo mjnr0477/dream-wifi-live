@@ -42,6 +42,10 @@ public final class DreamVpnService extends VpnService {
     public static final String EXTRA_SOURCE_ONLY = "dream_wifi_source_only";
     private static final int ID = 7201;
     private static final String CHANNEL = "dream_wifi_vpn";
+    private static final String SERVICE_STATE_PREFS = "dream_wifi_service_state";
+    private static final String KEY_ACTIVE_MODE = "active_mode";
+    private static final String MODE_SOURCE = "source";
+    private static final String MODE_RECEIVER = "receiver";
 
     private volatile boolean running = false;
     private volatile boolean captivePortalMode = false;

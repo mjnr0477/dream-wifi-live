@@ -44,12 +44,27 @@ async function main() {
     const sourceRegistered = waitMessage(source, m => m.type === "registered");
     source.send(JSON.stringify({ type: "register", role: "source", sourceToken: "test-source-secret" }));
     assert.equal((await sourceRegistered).role, "source");
+    const pairingMessage = await waitMessage(source, m => m.type === "pairing-code");
+    assert.match(pairingMessage.code, /^[A-F0-9]{12}$/);
+    assert.equal(pairingMessage.expiresInSeconds, 600);
+
+    nonOwner = new WebSocket(url);
+    await waitOpen(nonOwner);
+    const anonymousRejected = waitMessage(nonOwner, m => m.type === "error");
+    nonOwner.send(JSON.stringify({ type: "register", role: "client" }));
+    assert.match((await anonymousRejected).error, /pairing code/i);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    nonOwner = null;
 
     owner = new WebSocket(url);
     await waitOpen(owner);
     const ownerRegistered = waitMessage(owner, m => m.type === "registered");
-    owner.send(JSON.stringify({ type: "register", role: "owner", accessToken: "valid-owner-token" }));
-    assert.equal((await ownerRegistered).role, "client");
+    owner.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairingMessage.code }));
+    const ownerRegistration = await ownerRegistered;
+    assert.equal(ownerRegistration.role, "client");
+    assert.equal(ownerRegistration.sourceId, (await waitMessage(source, m => m.type === "registered")).sourceId);
+    assert.equal(typeof ownerRegistration.accessToken, "string");
+    assert.ok(ownerRegistration.accessToken.length >= 40);
 
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));
@@ -93,12 +108,6 @@ async function main() {
     const sourceClosed = waitMessage(source, m => m.type === "tcp-close" && m.id === "test-stream-1");
     owner.send(JSON.stringify({ type: "tcp-close", id: "test-stream-1" }));
     await sourceClosed;
-
-    nonOwner = new WebSocket(url);
-    await waitOpen(nonOwner);
-    const publicRegistered = waitMessage(nonOwner, m => m.type === "registered");
-    nonOwner.send(JSON.stringify({ type: "register", role: "client" }));
-    assert.equal((await publicRegistered).role, "client");
 
     legacy = new WebSocket(url);
     await waitOpen(legacy);

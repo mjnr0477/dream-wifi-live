@@ -50,6 +50,9 @@ public final class DreamVpnService extends VpnService {
     private static final String KEY_ACTIVE_MODE = "active_mode";
     private static final String MODE_SOURCE = "source";
     private static final String MODE_RECEIVER = "receiver";
+    static final String PAIRING_CODE_PREFS = "dream_wifi_pairing_code";
+    static final String KEY_PAIRING_CODE = "code";
+    static final String KEY_PAIRING_CODE_EXPIRES_AT = "expires_at";
 
     private volatile boolean running = false;
     private volatile boolean captivePortalMode = false;
@@ -163,6 +166,7 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
+            clearPublishedPairingCode();
             activeSourceMode = false;
             activeSourceNetwork = null;
             clearActiveMode();
@@ -183,6 +187,7 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
+        if (sourceOnly) clearPublishedPairingCode();
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
         String receiverAccessToken = intent == null ? "" : intent.getStringExtra(EXTRA_ACCESS_TOKEN);
         String sourceToken = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_TOKEN);
@@ -243,6 +248,7 @@ public final class DreamVpnService extends VpnService {
                     String normalized = message.toLowerCase(java.util.Locale.ROOT);
                     if (sourceOnly && normalized.contains("source channel rejected")
                             && (normalized.contains("not authorized") || normalized.contains("not configured") || normalized.contains("expired"))) {
+                        clearPublishedPairingCode();
                         DreamWifiCredentialStore.clearSource(DreamVpnService.this);
                         activeSourceMode = false;
                         activeSourceNetwork = null;
@@ -268,6 +274,12 @@ public final class DreamVpnService extends VpnService {
                 } catch (Exception error) {
                     updateNotification("Receiver connected, but its session could not be saved securely. Re-pair if the app process restarts.");
                 }
+            }
+            @Override public void onPairingCode(String code, long expiresAt) {
+                getSharedPreferences(PAIRING_CODE_PREFS, MODE_PRIVATE).edit()
+                        .putString(KEY_PAIRING_CODE, code)
+                        .putLong(KEY_PAIRING_CODE_EXPIRES_AT, expiresAt)
+                        .apply();
             }
             @Override public void onReady() {
                 if (sourceOnly) return;
@@ -310,6 +322,10 @@ public final class DreamVpnService extends VpnService {
             return restored;
         }
         return null;
+    }
+
+    private void clearPublishedPairingCode() {
+        getSharedPreferences(PAIRING_CODE_PREFS, MODE_PRIVATE).edit().clear().apply();
     }
 
     private void clearActiveMode() {

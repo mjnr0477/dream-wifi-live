@@ -52,6 +52,7 @@ final class DreamWifiRelay {
         void onReady();
         void onSources(String[] ids, String[] names);
         void onReceiverCredential(String sourceId, String accessToken);
+        void onPairingCode(String code, long expiresAt);
     }
 
     private final OkHttpClient http;
@@ -443,10 +444,17 @@ final class DreamWifiRelay {
                     status(sourceOnly ? "This phone is now publishing its connected Wi-Fi source." : "Remote Wi-Fi source authenticated; waiting for owner channel…");
                     notifyReadyIfPossible();
                 } else if ("pairing-code".equals(type)) {
-                    status("Source is online. Receiver pairing code: " + message.optString("code", "")
+                    String code = message.optString("code", "").trim().toUpperCase(java.util.Locale.ROOT);
+                    long expiresAt = message.optLong("expiresAt", System.currentTimeMillis()
+                            + message.optLong("expiresInSeconds", 600) * 1000L);
+                    Listener current = listener;
+                    if (current != null && code.matches("[A-F0-9]{12}")) current.onPairingCode(code, expiresAt);
+                    status("Source is online. Receiver pairing code: " + code
                             + " · expires in " + Math.max(1, (message.optInt("expiresInSeconds", 600) + 59) / 60)
                             + " minute(s). Share this code only with the receiver you authorize.");
                 } else if ("pairings-revoked".equals(type)) {
+                    Listener current = listener;
+                    if (current != null) current.onPairingCode("", 0L);
                     status("All receiver pairings for this source have been revoked.");
                 } else if ("ping".equals(type)) {
                     sendSource(new SafeJson().putSafe("type", "pong").putSafe("id", message.optString("id", "")).toString());
@@ -474,6 +482,8 @@ final class DreamWifiRelay {
             }
             @Override public void onClosed(WebSocket webSocket, int code, String reason) {
                 if (webSocket != sourceSocket) return;
+                Listener current = listener;
+                if (current != null) current.onPairingCode("", 0L);
                 sourceSocket = null;
                 sourceReady = false;
                 closeAllSourceStreams();
@@ -483,6 +493,8 @@ final class DreamWifiRelay {
             }
             @Override public void onFailure(WebSocket webSocket, Throwable error, Response response) {
                 if (webSocket != sourceSocket) return;
+                Listener current = listener;
+                if (current != null) current.onPairingCode("", 0L);
                 sourceSocket = null;
                 sourceReady = false;
                 closeAllSourceStreams();

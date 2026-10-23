@@ -3,6 +3,22 @@
   const $ = id => document.getElementById(id);
   const status = message => { $("status").textContent = message; };
   let position = null;
+  function refreshPairingCode() {
+    const value = $("source-pairing-value");
+    const expiry = $("source-pairing-expiry");
+    if (!value || !expiry) return;
+    const nativeApi = window["Dream" + "WifiNative"];
+    if (!nativeApi) { value.textContent = "Open in the Dream Wi-Fi app"; expiry.textContent = "The private code is visible only in the app on the source phone."; return; }
+    try {
+      const result = JSON.parse(nativeApi["getSource" + "PairingCode"]());
+      if (!result.available || !/^[A-F0-9]{12}$/.test(result.code || "")) { value.textContent = "Waiting for source phone…"; expiry.textContent = "Start source sharing. The code appears automatically when the relay is online."; return; }
+      value.textContent = result.code.match(/.{1,4}/g).join(" ");
+      const seconds = Math.max(0, Math.ceil((Number(result.expiresAt) - Date.now()) / 1000));
+      expiry.textContent = seconds ? "One-time code · expires in " + Math.floor(seconds / 60) + "m " + (seconds % 60) + "s. Share only with your authorized receiver." : "Code expired. Keep source sharing online for a fresh code."; 
+    } catch (_) { value.textContent = "Pairing code temporarily unavailable"; expiry.textContent = "Keep source sharing active and reopen this dashboard if needed."; }
+  }
+  refreshPairingCode();
+  setInterval(refreshPairingCode, 2000);
   const DIRECT_MAP_ENDPOINTS = [
     "https://osm.hpi.de/overpass/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter"

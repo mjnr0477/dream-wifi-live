@@ -10,6 +10,7 @@ import android.view.View;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.JavascriptInterface;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -59,6 +60,7 @@ public final class DashboardActivity extends Activity {
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.addJavascriptInterface(new PairingCodeBridge(), "DreamWifiNative");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -90,6 +92,30 @@ public final class DashboardActivity extends Activity {
         }
         if (webView.getUrl() == null) {
             webView.loadUrl(DASHBOARD_URL);
+        }
+    }
+
+    /** Exposes only the short-lived pairing code, never the source credential/token. */
+    private final class PairingCodeBridge {
+        @JavascriptInterface
+        public String getSourcePairingCode() {
+            android.content.SharedPreferences prefs = getSharedPreferences(
+                    DreamVpnService.PAIRING_CODE_PREFS, MODE_PRIVATE);
+            String code = prefs.getString(DreamVpnService.KEY_PAIRING_CODE, "");
+            long expiresAt = prefs.getLong(DreamVpnService.KEY_PAIRING_CODE_EXPIRES_AT, 0L);
+            org.json.JSONObject result = new org.json.JSONObject();
+            try {
+                if (code == null || !code.matches("[A-F0-9]{12}") || expiresAt <= System.currentTimeMillis()) {
+                    result.put("available", false);
+                } else {
+                    result.put("available", true);
+                    result.put("code", code);
+                    result.put("expiresAt", expiresAt);
+                }
+                return result.toString();
+            } catch (org.json.JSONException error) {
+                return "{}";
+            }
         }
     }
 

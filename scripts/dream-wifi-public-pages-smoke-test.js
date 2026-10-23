@@ -15,9 +15,6 @@ const receive = read("receive.html");
 for (const [name, html] of [["privacy", privacy], ["terms", terms], ["support", support]]) {
   assert.match(html, /<!doctype html>/i, name + " must be a standalone HTML document");
   assert.match(html, /<meta name="viewport"/i, name + " must be mobile-friendly");
-  assert.match(html, /href="\/privacy\.html"/, name + " must link to privacy");
-  assert.match(html, /href="\/terms\.html"/, name + " must link to terms");
-  assert.match(html, /href="\/support\.html"/, name + " must link to support");
 }
 assert.match(privacy, /coordinates are sent to Dream Wi-Fi/i);
 assert.match(privacy, /OpenStreetMap.{0,30}Overpass/i);
@@ -28,15 +25,10 @@ assert.match(terms, /not implemented or verified/i);
 assert.match(terms, /ICMP/i);
 assert.match(support, /GitHub issues are public/i);
 assert.match(support, /pairing codes/i);
-assert.match(privacy, /href="\/terms\.html"/);
-assert.match(privacy, /href="\/support\.html"/);
-assert.match(terms, /href="\/privacy\.html"/);
-assert.match(terms, /href="\/support\.html"/);
-assert.match(support, /href="\/privacy\.html"/);
-assert.match(support, /href="\/terms\.html"/);
-for (const [name, html] of [["index", index], ["share", share], ["receive", receive]]) {
-  assert.match(html, /href="\/privacy\.html"/, name + " page must expose privacy link");
-  assert.match(html, /href="\/terms\.html"/, name + " page must expose terms link");
-  assert.match(html, /href="\/support\.html"/, name + " page must expose support link");
+
+for (const [name, html] of [["privacy", privacy], ["terms", terms], ["support", support], ["index", index], ["share", share], ["receive", receive]]) {
+  assert.ok(html.includes('href="/privacy.html"'), name + " must expose privacy link");
+  assert.ok(html.includes('href="/terms.html"'), name + " must expose terms link");
+  assert.ok(html.includes('href="/support.html"'), name + " must expose support link");
 }
 console.log("Dream Wi-Fi privacy, terms, support, and navigation smoke test passed.");

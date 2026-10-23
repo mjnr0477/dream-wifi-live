@@ -384,7 +384,7 @@ final class DreamWifiRelay {
                     String reason = message.optString("error", "authorization failed");
                     status("Owner channel rejected: " + reason);
                     String lowerReason = reason.toLowerCase(java.util.Locale.ROOT);
-                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired")) {
+                    if (lowerReason.contains("invalid or expired") || lowerReason.contains("pairing session expired") || lowerReason.contains("revoked")) {
                         accessToken = "";
                         pairingCode = "";
                         status("Receiver pairing expired or was revoked. Disconnect and enter a fresh source pairing code.");

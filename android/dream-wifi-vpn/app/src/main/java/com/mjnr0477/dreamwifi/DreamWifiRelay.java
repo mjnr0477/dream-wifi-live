@@ -453,6 +453,8 @@ final class DreamWifiRelay {
                             + " · expires in " + Math.max(1, (message.optInt("expiresInSeconds", 600) + 59) / 60)
                             + " minute(s). Share this code only with the receiver you authorize.");
                 } else if ("pairings-revoked".equals(type)) {
+                    Listener current = listener;
+                    if (current != null) current.onPairingCode("", 0L);
                     status("All receiver pairings for this source have been revoked.");
                 } else if ("ping".equals(type)) {
                     sendSource(new SafeJson().putSafe("type", "pong").putSafe("id", message.optString("id", "")).toString());
@@ -480,6 +482,8 @@ final class DreamWifiRelay {
             }
             @Override public void onClosed(WebSocket webSocket, int code, String reason) {
                 if (webSocket != sourceSocket) return;
+                Listener current = listener;
+                if (current != null) current.onPairingCode("", 0L);
                 sourceSocket = null;
                 sourceReady = false;
                 closeAllSourceStreams();
@@ -489,6 +493,8 @@ final class DreamWifiRelay {
             }
             @Override public void onFailure(WebSocket webSocket, Throwable error, Response response) {
                 if (webSocket != sourceSocket) return;
+                Listener current = listener;
+                if (current != null) current.onPairingCode("", 0L);
                 sourceSocket = null;
                 sourceReady = false;
                 closeAllSourceStreams();

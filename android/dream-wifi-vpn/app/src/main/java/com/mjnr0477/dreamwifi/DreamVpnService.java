@@ -153,6 +153,7 @@ public final class DreamVpnService extends VpnService {
     public native long[] TProxyGetStats();
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        boolean restoredFromSystem = intent == null;
         if (intent == null) {
             intent = restoreStartIntent();
             if (intent == null) {
@@ -210,13 +211,23 @@ public final class DreamVpnService extends VpnService {
             return START_NOT_STICKY;
         }
         Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
+        ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         Network sourceNetwork = sourceOnly
-                ? (requestedSourceNetwork != null && isInternetWifi((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE), requestedSourceNetwork)
+                ? (requestedSourceNetwork != null && networkManager != null && isInternetWifi(networkManager, requestedSourceNetwork)
                     ? requestedSourceNetwork : findConnectedWifiNetwork())
                 : null;
         if (sourceOnly && sourceNetwork == null) {
-            activeSourceMode = false;
             activeSourceNetwork = null;
+            activeSourceLatitude = sourceLatitude;
+            activeSourceLongitude = sourceLongitude;
+            if (restoredFromSystem || requestedSourceNetwork != null) {
+                activeSourceMode = true;
+                getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
+                        .putString(KEY_ACTIVE_MODE, MODE_SOURCE).commit();
+                updateNotification("No validated Wi-Fi yet; waiting to resume the source relay automatically.");
+                return START_STICKY;
+            }
+            activeSourceMode = false;
             clearActiveMode();
             updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
             stopSelf();

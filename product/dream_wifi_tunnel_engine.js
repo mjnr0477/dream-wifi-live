@@ -210,7 +210,7 @@ function attachDreamWifiTunnel(server, options = {}) {
             return;
           }
           if (previous && previous !== socket &&
-              (previous.dreamSourceOwnerId !== sourceAuth.ownerId ||
+              (previous.dreamSourceOwnerId !== (sourceAuth.ownerId || sourceId) ||
                previous.dreamSourceAuth !== sourceAuth.kind)) {
             reject(socket, "Source ID is already registered to a different authorization scope.");
             return;

@@ -413,8 +413,8 @@ function attachDreamWifiTunnel(server, options = {}) {
         const port = Number(message.port);
         const activeForOwner = [...streams.values()].filter(entry => entry.owner === socket).length;
         if (!validStreamId(id) || !host || host.length > 253 || /\s/.test(host) || host.includes("/") || host.includes("\\") ||
-            ![80, 443].includes(port)) {
-          send(socket, { type: "tcp-error", id: validStreamId(id) ? id : "", error: "Only public HTTP/HTTPS TCP destinations are allowed." });
+            (!Number.isInteger(port) || port < 1 || port > 65535)) {
+          send(socket, { type: "tcp-error", id: validStreamId(id) ? id : "", error: "Only valid public TCP destinations are allowed." });
           return;
         }
         if (activeForOwner >= MAX_STREAMS_PER_OWNER) {

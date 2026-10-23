@@ -10,10 +10,10 @@ const sourceRoot = path.join(android, "app", "src", "main", "java", "com", "drea
 const read = file => fs.readFileSync(path.join(repository, file), "utf8");
 
 const manifest = read("android/dream-wifi-vpn/app/src/main/AndroidManifest.xml");
-const activity = read("android/dream-wifi-vpn/app/src/main/java/com/dreameducation/wifi/MainActivity.java");
-const service = read("android/dream-wifi-vpn/app/src/main/java/com/dreameducation/wifi/DreamVpnService.java");
-const nativeRelay = read("android/dream-wifi-vpn/app/src/main/java/com/dreameducation/wifi/DreamWifiRelay.java");
-const credentialStore = read("android/dream-wifi-vpn/app/src/main/java/com/dreameducation/wifi/DreamWifiCredentialStore.java");
+const activity = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/MainActivity.java");
+const service = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/DreamVpnService.java");
+const nativeRelay = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/DreamWifiRelay.java");
+const credentialStore = read("android/dream-wifi-vpn/app/src/main/java/com/dreamwifi/android/DreamWifiCredentialStore.java");
 const workflow = read(".github/workflows/dream-wifi-android-vpn.yml");
 const releaseWorkflow = read(".github/workflows/dream-wifi-android-release.yml");
 const readme = read("android/dream-wifi-vpn/README.md");

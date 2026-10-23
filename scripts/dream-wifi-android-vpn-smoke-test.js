@@ -51,6 +51,7 @@ assert.match(nativeRelay, /tcp-open/);
 assert.match(nativeRelay, /udp-send/);
 assert.match(nativeRelay, /port != 53/);
 assert.match(nativeRelay, /startInternetProbe/);
+assert.match(nativeRelay, /lowerReason\.contains\("revoked"\)/);
 assert.match(nativeRelay, /Captive portal redirect detected/);
 assert.match(server, /\/api\/dream-wifi\/source-enroll/);
 assert.match(server, /one-time-source-pairing/);

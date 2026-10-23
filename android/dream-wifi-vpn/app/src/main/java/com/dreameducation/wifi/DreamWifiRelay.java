@@ -67,11 +67,9 @@ final class DreamWifiRelay {
     private final AtomicBoolean readyNotified = new AtomicBoolean(false);
     private final AtomicBoolean ownerRetryScheduled = new AtomicBoolean(false);
     private final AtomicBoolean sourceRetryScheduled = new AtomicBoolean(false);
-    private final AtomicBoolean sessionRefreshRunning = new AtomicBoolean(false);
     private final AtomicBoolean probeInProgress = new AtomicBoolean(false);
 
     private volatile String accessToken = "";
-    private volatile String refreshToken = "";
     private volatile String sourceTicket;
     private volatile String pairingCode;
     private volatile String selectedSourceId = "";
@@ -731,79 +729,6 @@ final class DreamWifiRelay {
             return (HttpURLConnection) controlNetwork.openConnection(url);
         }
         return (HttpURLConnection) url.openConnection();
-    }
-
-    private void renewOwnerSession() {
-        if (!running.get() || refreshToken == null || refreshToken.isEmpty()
-                || !sessionRefreshRunning.compareAndSet(false, true)) return;
-        HttpURLConnection connection = null;
-        try {
-            connection = openControlConnection(BASE_URL + "/api/auth/refresh");
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json");
-            byte[] body = new SafeJson().putSafe("refresh_token", refreshToken).toString().getBytes(StandardCharsets.UTF_8);
-            try (OutputStream output = connection.getOutputStream()) { output.write(body); }
-            int code = connection.getResponseCode();
-            InputStream response = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-            if (response == null) throw new IOException("No session-refresh response.");
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (InputStream input = response) {
-                byte[] buffer = new byte[2048]; int count;
-                while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
-            }
-            JSONObject result = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-            JSONObject session = result.optJSONObject("session");
-            String newAccess = session == null ? "" : session.optString("access_token", "");
-            String newRefresh = session == null ? "" : session.optString("refresh_token", "");
-            if (code < 200 || code >= 300 || !result.optBoolean("success") || newAccess.isEmpty() || newRefresh.isEmpty()) {
-                status("Dream Education session needs a fresh sign-in before reconnecting.");
-                return;
-            }
-            accessToken = newAccess;
-            refreshToken = newRefresh;
-        } catch (Exception error) {
-            status("Dream Education session refresh failed: " + safeReason(error.getMessage()));
-        } finally {
-            if (connection != null) connection.disconnect();
-            sessionRefreshRunning.set(false);
-        }
-    }
-
-    private void renewSourceTicket() {
-        HttpURLConnection connection = null;
-        try {
-            connection = openControlConnection(BASE_URL + "/api/dream-wifi/source-ticket");
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("Authorization", "Bearer " + accessToken);
-            try (OutputStream output = connection.getOutputStream()) { output.write(new byte[0]); }
-            int code = connection.getResponseCode();
-            InputStream response = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-            if (response == null) throw new IOException("No source-ticket response.");
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (InputStream input = response) {
-                byte[] buffer = new byte[2048]; int count;
-                while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
-            }
-            JSONObject result = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-            String fresh = result.optString("token", "");
-            if (code < 200 || code >= 300 || !result.optBoolean("success") || fresh.isEmpty()) {
-                status("Could not renew the Quant source ticket. Sign in again if the session has expired.");
-                return;
-            }
-            sourceTicket = fresh;
-            status("Source ticket renewed; reconnecting to Quant source…");
-        } catch (Exception error) {
-            status("Source ticket renewal failed: " + safeReason(error.getMessage()));
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
     }
 
     private InetAddress resolvePublicAddress(String host) throws IOException {

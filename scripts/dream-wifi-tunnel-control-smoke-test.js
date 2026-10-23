@@ -37,7 +37,7 @@ async function main() {
   });
 
   const url = "ws://127.0.0.1:" + address.port + "/api/dream-wifi/tunnel";
-  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment;
+  let source, owner, nonOwner, legacy, nativeSource, enrolledSource, spoofedEnrollment, restartedSource, restartedServer, restartedWss;
   try {
     source = new WebSocket(url);
     await waitOpen(source);
@@ -163,6 +163,29 @@ async function main() {
     enrolledSource.send(JSON.stringify({ type: "register", role: "source", sourceToken: enrollment.sourceToken, sourceId: enrollment.sourceId, sourceName: "Per-source credential test" }));
     assert.equal((await enrolledRegistered).sourceId, enrollment.sourceId);
     assert.match((await enrolledCode).code, /^[A-F0-9]{12}$/);
+
+    const persistedCredentials = wss.getEnrolledSourceCredentials();
+    assert.equal(persistedCredentials.length, 1);
+    assert.equal(persistedCredentials[0].sourceId, enrollment.sourceId);
+    assert.notEqual(persistedCredentials[0].tokenHash, enrollment.sourceToken);
+    assert.match(persistedCredentials[0].tokenHash, /^[a-f0-9]{64}$/);
+
+    restartedServer = http.createServer();
+    await new Promise(resolve => restartedServer.listen(0, "127.0.0.1", resolve));
+    restartedWss = attachDreamWifiTunnel(restartedServer, {
+      sourceToken: "test-source-secret",
+      enrolledSourceCredentials: persistedCredentials
+    });
+    restartedSource = new WebSocket("ws://127.0.0.1:" + restartedServer.address().port + "/api/dream-wifi/tunnel");
+    await waitOpen(restartedSource);
+    const restoredRegistration = waitMessage(restartedSource, m => m.type === "registered");
+    const restoredPairingCode = waitMessage(restartedSource, m => m.type === "pairing-code");
+    restartedSource.send(JSON.stringify({
+      type: "register", role: "source", sourceToken: enrollment.sourceToken,
+      sourceId: enrollment.sourceId, sourceName: "Restored source"
+    }));
+    assert.equal((await restoredRegistration).sourceId, enrollment.sourceId);
+    assert.match((await restoredPairingCode).code, /^[A-F0-9]{12}$/);
 
     console.log("Dream Tunnel control-plane smoke test passed.");
   } finally {

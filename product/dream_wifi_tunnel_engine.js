@@ -246,7 +246,7 @@ function attachDreamWifiTunnel(server, options = {}) {
           if (suppliedToken) {
             const tokenHash = hashCredential(suppliedToken);
             const credential = pairingTokens.get(tokenHash);
-            if (!credential || credential.expiresAt <= now || !sources.has(credential.sourceId)) {
+            if (!credential || credential.expiresAt <= now) {
               pairingTokens.delete(tokenHash);
               reject(socket, "Pairing session is invalid or expired. Enter a fresh source pairing code.");
               return;

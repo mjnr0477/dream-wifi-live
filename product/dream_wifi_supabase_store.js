@@ -36,9 +36,22 @@ function createDreamWifiSupabaseStore(options = {}) {
   async function initialize() {
     if (!configured) return { configured: false, ready: false, credentials: [], sources: [] };
     // Verify both tables are reachable before advertising durable storage.
+    async function loadPages(table, columns, maximumRows) {
+      const rows = [];
+      const pageSize = 1000;
+      for (let offset = 0; offset < maximumRows; offset += pageSize) {
+        const page = await request(table, "select=" + columns + "&order=" + (table === "dream_wifi_source_credentials" ? "token_hash" : "id") + ".asc&limit=" + pageSize, {
+          headers: { Range: offset + "-" + (offset + pageSize - 1) }
+        });
+        const batch = Array.isArray(page) ? page : [];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+      return rows;
+    }
     const [credentials, sources] = await Promise.all([
-      request("dream_wifi_source_credentials", "select=source_id,token_hash,created_at&limit=10000"),
-      request("dream_wifi_sources", "select=id,name,latitude,longitude,first_seen,last_seen&limit=1000")
+      loadPages("dream_wifi_source_credentials", "source_id,token_hash,created_at", 10000),
+      loadPages("dream_wifi_sources", "id,name,latitude,longitude,first_seen,last_seen", 1000)
     ]);
     const validCredentials = (Array.isArray(credentials) ? credentials : []).filter(row =>
       row && typeof row.source_id === "string" &&

@@ -94,8 +94,12 @@ function attachDreamWifiTunnel(server, options = {}) {
   }
   function hashCredential(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
   function issuePairingCode(sourceSocket) {
+    const now = Date.now();
+    for (const [hash, pairing] of pairingCodes.entries()) if (pairing.expiresAt <= now) pairingCodes.delete(hash);
+    for (const [hash, credential] of pairingTokens.entries()) if (credential.expiresAt <= now) pairingTokens.delete(hash);
+    for (const [ip, attempt] of pairingAttempts.entries()) if (attempt.resetAt <= now) pairingAttempts.delete(ip);
     const code = crypto.randomBytes(6).toString("hex").toUpperCase();
-    const expiresAt = Date.now() + PAIRING_CODE_TTL_MS;
+    const expiresAt = now + PAIRING_CODE_TTL_MS;
     pairingCodes.set(hashCredential(code), { sourceId: sourceSocket.dreamSourceId, expiresAt });
     send(sourceSocket, { type: "pairing-code", code, expiresAt, expiresInSeconds: PAIRING_CODE_TTL_MS / 1000 });
   }

@@ -92,13 +92,17 @@ function createDreamWifiSupabaseStore(options = {}) {
 
   async function saveSources(sources) {
     if (!ready) throw new Error("Supabase durable storage is not ready.");
-    const rows = (Array.isArray(sources) ? sources : []).slice(-1000).filter(source =>
-      source && /^[a-zA-Z0-9_-]{1,80}$/.test(String(source.id || ""))
-    ).map(source => ({
+    const rows = (Array.isArray(sources) ? sources : []).slice(-1000).filter(source => {
+      if (!source || !/^[a-zA-Z0-9_-]{1,80}$/.test(String(source.id || ""))) return false;
+      if (source.latitude === null || source.latitude === "" || source.longitude === null || source.longitude === "") return false;
+      const latitude = Number(source.latitude), longitude = Number(source.longitude);
+      return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+        Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+    }).map(source => ({
       id: source.id,
       name: String(source.name || "Dream Wi-Fi source").slice(0, 80),
-      latitude: Number.isFinite(Number(source.latitude)) ? Number(source.latitude) : null,
-      longitude: Number.isFinite(Number(source.longitude)) ? Number(source.longitude) : null,
+      latitude: Number(source.latitude),
+      longitude: Number(source.longitude),
       first_seen: source.first_seen || new Date().toISOString(),
       last_seen: source.last_seen || new Date().toISOString()
     }));

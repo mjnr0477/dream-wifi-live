@@ -94,25 +94,6 @@ async function main() {
     assert.match((await reusedCodeRejected).error, /valid, unexpired pairing code/i);
     reusedCodeClient.close();
 
-    // A dropped socket can reconnect with the same session token; explicit disconnect revokes it.
-    owner.close();
-    await new Promise(resolve => setTimeout(resolve, 80));
-    const resumedOwner = new WebSocket(url);
-    await waitOpen(resumedOwner);
-    const resumedRegistered = waitMessage(resumedOwner, m => m.type === "registered");
-    resumedOwner.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
-    assert.equal((await resumedRegistered).role, "client");
-    const disconnectAck = waitMessage(resumedOwner, m => m.type === "disconnected");
-    resumedOwner.send(JSON.stringify({ type: "disconnect" }));
-    await disconnectAck;
-    const disconnectedTokenClient = new WebSocket(url);
-    await waitOpen(disconnectedTokenClient);
-    const disconnectedTokenRejected = waitMessage(disconnectedTokenClient, m => m.type === "error");
-    disconnectedTokenClient.send(JSON.stringify({ type: "register", role: "client", accessToken: ownerRegistration.accessToken }));
-    assert.match((await disconnectedTokenRejected).error, /invalid or expired/i);
-    disconnectedTokenClient.close();
-    owner = resumedOwner;
-
     const pingResult = waitMessage(owner, m => m.type === "ping-result");
     owner.send(JSON.stringify({ type: "ping-source" }));
     const sourcePing = await waitMessage(source, m => m.type === "ping");

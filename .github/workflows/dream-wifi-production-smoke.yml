@@ -1,0 +1,72 @@
+name: Dream Wi-Fi production smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "server.js"
+      - "public/**"
+      - "product/**"
+      - ".github/workflows/dream-wifi-production-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live health, durable storage, and public policy pages
+        env:
+          DREAM_WIFI_PRODUCTION_URL: https://dream-wifi-live.onrender.com
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const base = process.env.DREAM_WIFI_PRODUCTION_URL;
+          async function get(path) {
+            let last;
+            for (let attempt = 0; attempt < 8; attempt++) {
+              try {
+                const response = await fetch(new URL(path, base), { redirect: "error" });
+                if (!response.ok) throw new Error(path + " returned HTTP " + response.status);
+                return response;
+              } catch (error) {
+                last = error;
+                await new Promise(resolve => setTimeout(resolve, 5000));
+              }
+            }
+            throw last;
+          }
+          (async () => {
+            const healthResponse = await get("/healthz");
+            const health = await healthResponse.json();
+            if (health.ok !== true || health.service !== "dream-wifi-live") {
+              throw new Error("Live health response is invalid: " + JSON.stringify(health));
+            }
+            if (health.database !== true || health.durable_storage_ready !== true) {
+              throw new Error("Production must report verified durable storage; got " + JSON.stringify(health));
+            }
+            const configResponse = await get("/api/dream-wifi/config");
+            const config = await configResponse.json();
+            if (config.database !== true || config.durable_storage_ready !== true || config.source_enrollment !== true) {
+              throw new Error("Live configuration is not release-ready: " + JSON.stringify(config));
+            }
+            for (const page of ["/privacy.html", "/terms.html", "/support.html"]) {
+              const response = await get(page);
+              const html = await response.text();
+              if (!/<!doctype html>/i.test(html) || !html.includes("Dream Wi-Fi") && !html.includes("DREAM")) {
+                throw new Error(page + " is not a valid public policy page");
+              }
+            }
+            const headers = healthResponse.headers;
+            if (headers.get("x-content-type-options") !== "nosniff") {
+              throw new Error("Missing X-Content-Type-Options: nosniff");
+            }
+            if (headers.get("referrer-policy") !== "no-referrer") {
+              throw new Error("Missing Referrer-Policy: no-referrer");
+            }
+            console.log("Production health, durable storage, configuration, security headers, and policy pages passed.");
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE

@@ -11,9 +11,12 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.Uri;
 import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 
 import java.io.File;
@@ -40,6 +43,7 @@ public final class DreamVpnService extends VpnService {
     public static final String EXTRA_SOURCE_LATITUDE = "dream_wifi_source_latitude";
     public static final String EXTRA_SOURCE_LONGITUDE = "dream_wifi_source_longitude";
     public static final String EXTRA_SOURCE_ONLY = "dream_wifi_source_only";
+    private static final String EXTRA_SOURCE_NETWORK = "dream_wifi_source_network";
     private static final int ID = 7201;
     private static final String CHANNEL = "dream_wifi_vpn";
     private static final String SERVICE_STATE_PREFS = "dream_wifi_service_state";
@@ -50,7 +54,88 @@ public final class DreamVpnService extends VpnService {
     private volatile boolean running = false;
     private volatile boolean captivePortalMode = false;
     private volatile int tunFd = -1;
+    private volatile boolean activeSourceMode = false;
+    private volatile Network activeSourceNetwork;
+    private volatile double activeSourceLatitude = Double.NaN;
+    private volatile double activeSourceLongitude = Double.NaN;
+    private final Handler networkHandler = new Handler(Looper.getMainLooper());
+    private ConnectivityManager.NetworkCallback wifiNetworkCallback;
+    private boolean networkCallbackRegistered = false;
     private DreamWifiRelay relay;
+
+    @Override public void onCreate() {
+        super.onCreate();
+        registerWifiNetworkCallback();
+    }
+
+    private void registerWifiNetworkCallback() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) return;
+        NetworkRequest request = new NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build();
+        wifiNetworkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
+                boolean validatedWifi = capabilities != null
+                        && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                networkHandler.post(() -> {
+                    if (activeSourceMode && network.equals(activeSourceNetwork) && !validatedWifi) {
+                        activeSourceNetwork = null;
+                        updateNotification("Source Wi-Fi lost validated internet; waiting to reconnect.");
+                    }
+                    if (validatedWifi) maybeReconnectSourceOnNetwork(network);
+                });
+            }
+
+            @Override public void onLost(Network network) {
+                networkHandler.post(() -> {
+                    if (activeSourceMode && network.equals(activeSourceNetwork)) {
+                        activeSourceNetwork = null;
+                        updateNotification("Source Wi-Fi disconnected; waiting for a validated Wi-Fi network.");
+                    }
+                });
+            }
+        };
+        try {
+            manager.registerNetworkCallback(request, wifiNetworkCallback, networkHandler);
+            networkCallbackRegistered = true;
+        } catch (Exception ignored) {
+            updateNotification("Automatic source network-change recovery is unavailable on this device.");
+        }
+    }
+
+    private void maybeReconnectSourceOnNetwork(Network network) {
+        if (!activeSourceMode || network == null || network.equals(activeSourceNetwork)) return;
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null || !isInternetWifi(manager, network)) return;
+        DreamWifiCredentialStore.SourceCredentials credentials = DreamWifiCredentialStore.loadSource(this);
+        if (credentials == null) {
+            activeSourceMode = false;
+            activeSourceNetwork = null;
+            clearActiveMode();
+            return;
+        }
+
+        updateNotification("Source Wi-Fi changed; reconnecting the relay on the validated network.");
+        DreamWifiRelay previous = relay;
+        relay = null;
+        if (previous != null) previous.stop();
+        activeSourceNetwork = network;
+
+        Intent restart = new Intent(this, DreamVpnService.class);
+        restart.setAction(ACTION_START);
+        restart.putExtra(EXTRA_SOURCE_ONLY, true);
+        restart.putExtra(EXTRA_SOURCE_ID, credentials.sourceId);
+        restart.putExtra(EXTRA_SOURCE_TOKEN, credentials.sourceToken);
+        restart.putExtra(EXTRA_SOURCE_LATITUDE, activeSourceLatitude);
+        restart.putExtra(EXTRA_SOURCE_LONGITUDE, activeSourceLongitude);
+        restart.putExtra(EXTRA_SOURCE_NETWORK, network);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(restart);
+        else startService(restart);
+    }
 
     static { System.loadLibrary("hev-socks5-tunnel"); }
     public native boolean TProxyStartService(String configPath, int fd);
@@ -59,6 +144,7 @@ public final class DreamVpnService extends VpnService {
     public native long[] TProxyGetStats();
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        boolean restoredFromSystem = intent == null;
         if (intent == null) {
             intent = restoreStartIntent();
             if (intent == null) {
@@ -77,6 +163,8 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
+            activeSourceMode = false;
+            activeSourceNetwork = null;
             clearActiveMode();
             stopTunnel();
             stopForeground(true);
@@ -104,6 +192,8 @@ public final class DreamVpnService extends VpnService {
         if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
                 : (pairingCode == null || pairingCode.trim().isEmpty())
                         && (receiverAccessToken == null || receiverAccessToken.trim().isEmpty())) {
+            activeSourceMode = false;
+            activeSourceNetwork = null;
             clearActiveMode();
             updateNotification(sourceOnly
                     ? "Source enrollment failed. Publish this phone again to obtain a source credential."
@@ -111,13 +201,33 @@ public final class DreamVpnService extends VpnService {
             stopSelf();
             return START_NOT_STICKY;
         }
-        Network sourceNetwork = sourceOnly ? findConnectedWifiNetwork() : null;
+        Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
+        ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        Network sourceNetwork = sourceOnly
+                ? (requestedSourceNetwork != null && networkManager != null && isInternetWifi(networkManager, requestedSourceNetwork)
+                    ? requestedSourceNetwork : findConnectedWifiNetwork())
+                : null;
         if (sourceOnly && sourceNetwork == null) {
+            activeSourceNetwork = null;
+            activeSourceLatitude = sourceLatitude;
+            activeSourceLongitude = sourceLongitude;
+            if (restoredFromSystem || requestedSourceNetwork != null) {
+                activeSourceMode = true;
+                getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
+                        .putString(KEY_ACTIVE_MODE, MODE_SOURCE).commit();
+                updateNotification("No validated Wi-Fi yet; waiting to resume the source relay automatically.");
+                return START_STICKY;
+            }
+            activeSourceMode = false;
             clearActiveMode();
             updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
             stopSelf();
             return START_NOT_STICKY;
         }
+        activeSourceMode = sourceOnly;
+        activeSourceNetwork = sourceOnly ? sourceNetwork : null;
+        activeSourceLatitude = sourceOnly ? sourceLatitude : Double.NaN;
+        activeSourceLongitude = sourceOnly ? sourceLongitude : Double.NaN;
         getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_ACTIVE_MODE, sourceOnly ? MODE_SOURCE : MODE_RECEIVER).commit();
         String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
@@ -134,6 +244,8 @@ public final class DreamVpnService extends VpnService {
                     if (sourceOnly && normalized.contains("source channel rejected")
                             && (normalized.contains("not authorized") || normalized.contains("not configured") || normalized.contains("expired"))) {
                         DreamWifiCredentialStore.clearSource(DreamVpnService.this);
+                        activeSourceMode = false;
+                        activeSourceNetwork = null;
                         clearActiveMode();
                     }
                     if (!sourceOnly && normalized.contains("receiver pairing expired or was revoked")) {
@@ -362,6 +474,8 @@ public final class DreamVpnService extends VpnService {
     }
 
     @Override public void onRevoke() {
+        activeSourceMode = false;
+        activeSourceNetwork = null;
         clearActiveMode();
         stopTunnel();
         stopForeground(true);
@@ -370,6 +484,11 @@ public final class DreamVpnService extends VpnService {
     }
 
     @Override public void onDestroy() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (networkCallbackRegistered && manager != null && wifiNetworkCallback != null) {
+            try { manager.unregisterNetworkCallback(wifiNetworkCallback); } catch (Exception ignored) {}
+            networkCallbackRegistered = false;
+        }
         stopTunnel();
         super.onDestroy();
     }

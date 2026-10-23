@@ -100,6 +100,7 @@ public final class DreamVpnService extends VpnService {
         if (sourceOnly ? sourceToken == null || sourceToken.isEmpty() || enrolledSourceId == null || enrolledSourceId.isEmpty()
                 : (pairingCode == null || pairingCode.trim().isEmpty())
                         && (receiverAccessToken == null || receiverAccessToken.trim().isEmpty())) {
+            clearActiveMode();
             updateNotification(sourceOnly
                     ? "Source enrollment failed. Publish this phone again to obtain a source credential."
                     : "Enter a valid one-time source pairing code in Dream Wi-Fi.");
@@ -108,6 +109,7 @@ public final class DreamVpnService extends VpnService {
         }
         Network sourceNetwork = sourceOnly ? findConnectedWifiNetwork() : null;
         if (sourceOnly && sourceNetwork == null) {
+            clearActiveMode();
             updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
             stopSelf();
             return START_NOT_STICKY;
@@ -356,6 +358,7 @@ public final class DreamVpnService extends VpnService {
     }
 
     @Override public void onRevoke() {
+        clearActiveMode();
         stopTunnel();
         stopForeground(true);
         stopSelf();

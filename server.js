@@ -73,7 +73,7 @@ app.disable("x-powered-by");
 app.use((req, res, next) => { res.set("X-Content-Type-Options", "nosniff"); res.set("Referrer-Policy", "no-referrer"); res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json({ limit: "32kb" }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: "dream-wifi-live", database: false }));
-app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: durableStorageReady, durable_storage_ready: durableStorageReady, database: false, authentication: "one-time-source-pairing" }));
+app.get("/api/dream-wifi/config", (_req, res) => res.json({ configured: Boolean(sourceToken), source_enrollment: true, durable_storage_ready: durableStorageReady, database: false, authentication: "one-time-source-pairing" }));
 app.post("/api/dream-wifi/source-enroll", (req, res) => {
   if (!durableStorageReady) return res.status(503).json({ success: false, error: "Source enrollment is disabled until durable storage is configured and DREAM_WIFI_STORAGE_READY=true is set by the operator." });
   const now = Date.now();

@@ -3,16 +3,23 @@ plugins { id "com.android.application" }
 def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "").toString().trim()
 while (dreamWifiBaseUrl.endsWith("/")) { dreamWifiBaseUrl = dreamWifiBaseUrl.substring(0, dreamWifiBaseUrl.length() - 1) }
 
+def releaseStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+def releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+def releaseSigningConfigured = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword]
+        .every { it != null && !it.trim().isEmpty() }
+
 dependencies {
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
 
 android {
     buildFeatures { buildConfig true }
-    namespace "com.dreameducation.wifi"
+    namespace "com.mjnr0477.dreamwifi"
     compileSdk 35
     defaultConfig {
-        applicationId "com.dreameducation.wifi"
+        applicationId "com.mjnr0477.dreamwifi"
         minSdk 26
         targetSdk 35
         versionCode 1
@@ -27,4 +34,23 @@ android {
         }
     }
     ndkVersion "27.2.12479018"
+
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
 }

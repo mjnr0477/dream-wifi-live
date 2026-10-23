@@ -38,7 +38,7 @@ jobs:
           cd hev-socks5-tunnel
           git checkout 9b2c2320b26046b307abd6ddb5f102b2ccd1d4a4
           git submodule update --init --recursive
-          sed -i 's/#define PKGNAME hev\/htproxy/#define PKGNAME com\/dreameducation\/wifi/' src/hev-jni.c
+          sed -i 's/#define PKGNAME hev\/htproxy/#define PKGNAME com\/mjnr0477\/dreamwifi/' src/hev-jni.c
           sed -i 's/#define CLSNAME TProxyService/#define CLSNAME DreamVpnService/' src/hev-jni.c
       - uses: gradle/actions/setup-gradle@v4
         with:

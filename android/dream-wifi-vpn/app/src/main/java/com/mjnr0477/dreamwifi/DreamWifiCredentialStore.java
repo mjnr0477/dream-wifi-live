@@ -1,4 +1,4 @@
-package com.dreameducation.wifi;
+package com.mjnr0477.dreamwifi;
 
 import android.content.Context;
 import android.content.SharedPreferences;

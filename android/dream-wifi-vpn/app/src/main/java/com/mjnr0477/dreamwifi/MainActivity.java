@@ -1,4 +1,4 @@
-package com.dreameducation.wifi;
+package com.mjnr0477.dreamwifi;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -35,7 +35,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final int VPN_PERMISSION_REQUEST = 1001;
     private static final int SOURCE_LOCATION_REQUEST = 1002;
-    static final String ACTION_STATUS = "com.dreameducation.wifi.STATUS";
+    static final String ACTION_STATUS = "com.mjnr0477.dreamwifi.STATUS";
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText pairingCodeInput;
     private Button connectButton;

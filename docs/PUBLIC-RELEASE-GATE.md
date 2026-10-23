@@ -8,7 +8,7 @@
 - [x] Android debug APK builds in GitHub Actions.
 - [x] Add public privacy, acceptable-use, and support/abuse-reporting pages, link them from all user-facing screens, and test their disclosures/navigation in CI. Owner/legal review and confirmation of a private privacy contact channel remain required before public release.
 - [x] Harden public destination IP filtering for the Node source relay and native Android relay, including reserved IPv4/IPv6 ranges, with automated address-classification tests.
-- [x] Add a live production smoke workflow to verify health, durable-storage readiness, security headers, and policy-page delivery after main is deployed. This workflow has not yet run against the new policy-page commit.
+- [x] Live production smoke passed on `main` commit `b3369cbd61395a0f78b4bab07a28a9012f98bc55`: [run 39972672608](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39972672608). It verified live health, Supabase/durable-storage readiness, security headers, privacy/terms/support pages, and the homepage/receiver prototype warnings.
 - [ ] Run backend tests against the exact commit selected for release.
 - [ ] Build a signed release APK/AAB from the exact commit selected for release.
 - [ ] Verify release signing, package ID/version, permissions, dependency licenses, and artifact checksum.
@@ -40,17 +40,17 @@ Use at least two supported Android phones and a third phone for downstream-hotsp
 
 ## 4. Production and release
 
-- [ ] Deploy the reviewed backend to production and verify health, config, source enrollment, pairing, revocation, and tunnel traffic against the live host.
-- [ ] Verify TLS, security headers, error behavior, service restart recovery, and rollback procedure.
-- [ ] Publish a privacy policy covering location, network metadata, connection logs, retention, and contact details.
-- [ ] Provide support/report-abuse contact, terms/acceptable-use rules, supported-device list, known limitations, and setup/recovery instructions.
+- [x] Deploy the current backend to production; the live smoke test verified health, configuration, and durable-storage readiness. [ ] Verify live source enrollment, pairing, revocation, and real tunnel traffic against the live host.
+- [x] HTTPS/TLS connectivity and security headers were exercised by the live production smoke test. [ ] Verify error behavior, service restart recovery, and rollback procedure.
+- [x] Publish a project-level privacy notice covering location, network metadata, connection logs, and retention. [ ] Owner/legal review and confirmation of a suitable private privacy-contact channel remain required.
+- [x] Publish terms/acceptable-use rules, support and abuse-reporting instructions, and known prototype limitations. [ ] Confirm a private support/security contact channel and publish a supported-device list plus incident/recovery procedures.
 - [ ] Perform a final code/security review and retain the physical acceptance evidence.
 - [ ] Only then convert this PR from draft and authorize public distribution.
 
 ## Current verified facts
 
-- Backend verification passed on `main` commit `b3fb4b8242b3b6a1e17e0ff3fde7d7080253c4bb`: [GitHub Actions run 39968180588](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39968180588). The suite includes Supabase mock integration, source-credential restart restoration, receiver-session restart rejection, browser WebSocket origin rejection, invalid/reused/expired pairing-code rejection, active-session revocation, revoked-token rejection, arbitrary TCP/UDP port forwarding, split TCP response chunks, and invalid-port rejection.
-- Android debug APK and signed release APK/AAB variant builds passed on the release-validation branch: [GitHub Actions run 39968288323](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39968288323). CI used an ephemeral key only for validation and did not publish those release artifacts. The Android package is `com.mjnr0477.dreamwifi`, and the code includes Android Keystore source/receiver credential encryption, sticky service restoration, and source Wi-Fi network-change recovery. The downloadable debug APK remains a test build, not a production release.
+- Backend verification passed on `main` commit `b3369cbd61395a0f78b4bab07a28a9012f98bc55`: [GitHub Actions run 39972672571](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39972672571). The suite includes Supabase mock integration, source-credential restart restoration, receiver-session restart rejection, browser WebSocket origin rejection, invalid/reused/expired pairing-code rejection, active-session revocation, revoked-token rejection, arbitrary TCP/UDP port forwarding, split TCP response chunks, public-IP safety checks, public-page disclosure checks, and invalid-port rejection.
+- Android debug APK and signed release APK/AAB variant builds passed on `main` commit `63c868d0243f3d63eb8f9bd0b88daf5c3306a590`: [GitHub Actions run 39971729676](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39971729676). Later commits changed public pages and workflow checks, not Android source. CI used an ephemeral key only for validation and did not publish those release artifacts. The Android package is `com.mjnr0477.dreamwifi`, and the code includes Android Keystore source/receiver credential encryption, sticky service restoration, and source Wi-Fi network-change recovery. The downloadable debug APK remains a test build, not a production release.
 - `npm audit --audit-level=moderate` passed on [GitHub Actions run 39969103361](https://github.com/mjnr0477/dream-wifi-live/actions/runs/39969103361); CI now blocks moderate- and high-severity dependency advisories.
 - Supabase integration tests use a local mock PostgREST service. They verify server-only key use, hashed source credential persistence, startup restoration, and source authentication after a simulated restart. They do **not** prove that Render can authenticate to the live Supabase project.
 - Supabase project `Mariona` (`lzmrvalonsxtapigtjcx`) is `ACTIVE_HEALTHY` and has the two RLS-enabled Dream Wi-Fi tables. The Supabase integration tests and Render startup readiness checks passed. A live database inspection on 2026-10-23 still showed zero rows in both tables, so a real source enrollment followed by live restart recovery has not yet been demonstrated.

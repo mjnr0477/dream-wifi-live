@@ -168,6 +168,7 @@ async function startServer() {
       const stored = await supabaseStore.initialize();
       if (!stored.ready) throw new Error("Supabase durable storage did not become ready.");
       enrolledSourceCredentials = stored.credentials;
+      dreamWifiTunnel.loadEnrolledSourceCredentials(enrolledSourceCredentials);
       knownSources.clear();
       for (const source of stored.sources) knownSources.set(source.id, source);
       durableStorageReady = true;

@@ -106,11 +106,33 @@
       const title = document.createElement("strong"); title.textContent = network.ssid || "(Hidden network)";
       const details = document.createElement("p"); details.className = "muted";
       details.textContent = (network.level_dbm == null ? "Signal unknown" : network.level_dbm + " dBm") + " · " + (network.security || "Security unknown") + (network.capabilities ? " · " + network.capabilities : "");
-      const button = document.createElement("button"); button.className = "secondary"; button.textContent = "Open Wi-Fi settings";
+      const button = document.createElement("button"); button.className = "secondary";
+      const native = window.DreamWifiNative;
+      const canSuggest = network.security === "Open" && native && typeof native.suggestOpenWifi === "function";
+      button.textContent = canSuggest ? "Connect to open Wi-Fi" : "Open Wi-Fi settings";
       button.addEventListener("click", () => {
-        const native = window.DreamWifiNative;
-        if (native && typeof native.openWifiSettings === "function") native.openWifiSettings();
-        else { $("status").textContent = "Open Android Settings → Network & Internet → Wi-Fi and select this network. Dream Wi-Fi cannot bypass Android's connection confirmation."; }
+        if (canSuggest) {
+          try {
+            const result = JSON.parse(native.suggestOpenWifi(network.ssid));
+            const messages = {
+              suggested: "Open network suggestion sent to Android. The system may ask you to approve it and decides whether to connect. This does not guarantee internet access.",
+              already_suggested: "This network is already suggested to Android. Check the system Wi-Fi notification or Wi-Fi settings to approve/connect.",
+              permission_required: "Grant Nearby Wi-Fi permission, then tap Connect again.",
+              settings_required: "Android requires its Wi-Fi settings for this network. Choose it there to connect.",
+              invalid_ssid: "This network has no usable name. Open Wi-Fi settings to select it manually.",
+              unavailable: "Wi-Fi connection suggestions are unavailable on this device."
+            };
+            $("status").textContent = messages[result.status] || "Android could not suggest this network. Open Wi-Fi settings to connect manually.";
+            if (result.status === "settings_required" || result.status === "unavailable" || result.status === "invalid_ssid") native.openWifiSettings();
+          } catch (_) {
+            $("status").textContent = "Could not request the connection. Open Android Wi-Fi settings to connect.";
+            native.openWifiSettings();
+          }
+        } else if (native && typeof native.openWifiSettings === "function") {
+          native.openWifiSettings();
+        } else {
+          $("status").textContent = "Open Android Settings → Network & Internet → Wi-Fi and select this network. Dream Wi-Fi cannot bypass Android's connection confirmation.";
+        }
       });
       item.append(title, details, button); root.appendChild(item);
     }

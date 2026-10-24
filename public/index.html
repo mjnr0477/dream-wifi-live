@@ -1,14 +1,73 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07110d"><title>Dream Wi-Fi — public hotspots</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07111f">
+<meta name="description" content="Dream Wi-Fi helps you discover public Wi-Fi locations and participating internet sources.">
+<title>Dream Wi-Fi — internet, without the distance</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#07110d;color:#f1f5f9}*{box-sizing:border-box}body{margin:0}header,main{width:min(900px,calc(100% - 32px));margin:auto}header{padding:24px 0;border-bottom:1px solid #243b30;display:flex;justify-content:space-between;gap:12px;align-items:center}.brand{font-weight:900;letter-spacing:.08em}.brand span{color:#86efac}main{padding:42px 0 80px}h1{font-size:clamp(2.3rem,7vw,4.8rem);line-height:1;margin:12px 0 20px;letter-spacing:-.05em}.eyebrow{color:#86efac;text-transform:uppercase;letter-spacing:.16em;font-size:.78rem;font-weight:800}.lead{color:#bac7c0;line-height:1.7;max-width:720px}.card{margin-top:26px;border:1px solid #2b4939;border-radius:18px;padding:22px;background:#0d1b14}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}select,button{font:inherit;border-radius:10px;padding:12px 14px;min-height:46px}select{background:#07110d;border:1px solid #476454;color:white;flex:1;min-width:180px}button{background:#4ade80;color:#052e16;border:0;font-weight:850;cursor:pointer}button.secondary{background:#20382b;color:#e2e8f0;border:1px solid #476454}button:disabled{opacity:.5;cursor:not-allowed}#status{white-space:pre-wrap;color:#cbd5e1;line-height:1.7;min-height:2em;margin-top:14px}.muted{color:#94a3b8;font-size:.9rem;line-height:1.7}.tile{border:1px solid #294235;border-radius:12px;padding:14px;margin:12px 0}article strong{color:#86efac}a{overflow-wrap:anywhere}@media(max-width:520px){header{align-items:flex-start;flex-direction:column}}
-</style></head><body><header><div class="brand">DREAM <span>WI-FI</span></div><div class="muted">Standalone · no account required</div></header>
-<main><div class="eyebrow">Dream Tunnel · Wi-Fi discovery</div><h1>Find Wi-Fi around you.</h1>
-<p class="lead">Search mapped public Wi-Fi venues and participating Dream Wi-Fi source devices within up to 300 km. Public hotspot locations come from OpenStreetMap; participating sources are devices that have opted in to share a connection.</p>
-<section class="card" style="border-color:#725d2b;background:#211c0e"><h2>Prototype testing notice</h2><p class="muted">Dream Wi-Fi is still under testing. Native Android VPN routing, background/Doze reliability, traffic-leak prevention, and internet sharing to a third phone have not passed physical-device acceptance tests. Do not rely on this prototype for sensitive traffic.</p></section>
-<section class="card"><h2>Share your internet</h2><p class="muted">Connected to a Wi-Fi network and want to volunteer it? Open the source setup guide. A link alone cannot switch sharing on; the source connector must be installed and authorized.</p><p><a href="/share.html" style="color:#86efac;font-weight:800">Set up a sharing device →</a></p></section>
-<section class="card"><h2>Receive internet</h2><p class="muted">Looking for a participating device that is already sharing? Check online sources and test whether a source responds.</p><p><a href="/receive.html" style="color:#86efac;font-weight:800">Find a sharing device →</a></p></section>
-<section class="card"><h2>Discover Wi-Fi</h2><p id="location" class="muted">Your location has not been requested yet.</p><div class="row"><button id="locate">Detect my location</button><select id="radius" aria-label="Search radius"><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option><option value="200">200 km</option><option value="300" selected>300 km</option></select><button id="search" class="secondary">Search again</button></div><p id="status" role="status" aria-live="polite"></p></section>
-<section class="card"><h2>Public Wi-Fi locations</h2><p id="hotspot-summary" class="muted"></p><div id="hotspots" aria-live="polite"></div><p id="attribution" class="muted">Map data © OpenStreetMap contributors</p></section>
-<section class="card"><h2>Participating Dream Wi-Fi sources</h2><p id="source-summary" class="muted"></p><div id="sources" aria-live="polite"></div></section>
-<section class="card"><h2>Important limits</h2><div class="tile"><strong>Not every router or SSID</strong><p class="muted">No website can remotely scan every private router or every Wi-Fi network across 300 km. Public results are mapped venues tagged as offering Wi-Fi; coverage depends on map data. They may be closed, password-protected, paid, or no longer available.</p></div><div class="tile"><strong>Finding a hotspot is not connecting</strong><p class="muted">A map listing does not provide its password or authorize access. To relay traffic through Dream Wi-Fi, a participating source device must be online and explicitly sharing its network. The web app is not a full-device VPN.</p></div><div class="tile"><strong>Location privacy</strong><p class="muted">Your coordinates are sent to OpenStreetMap's public Overpass map-data service to look for mapped Wi-Fi venues. Use location search only if you're comfortable with that request.</p></div></section><footer class="muted" style="padding:18px 0;border-top:1px solid #243b30;margin-top:24px">Dream Wi-Fi is a prototype. <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="/support.html">Support / report abuse</a></footer></main><script src="/app.js" defer></script></body></html>
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#07111f;color:#f5f8ff;font-synthesis:none;text-rendering:optimizeLegibility;--muted:#a6b4ca;--line:rgba(180,204,238,.16);--panel:rgba(15,30,52,.82);--mint:#79f2c0;--blue:#86b8ff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 85% 0%,rgba(47,107,173,.22),transparent 34rem),radial-gradient(ellipse at 5% 35%,rgba(38,181,139,.10),transparent 32rem),#07111f}
+a{color:var(--mint);text-decoration:none}a:hover{text-decoration:underline}button,select{font:inherit}header,main,footer{width:min(1080px,calc(100% - 32px));margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 0;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:11px;font-weight:900;letter-spacing:.09em;font-size:.95rem}.brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:13px;background:linear-gradient(145deg,#a3ffe0,#60caff);color:#062034;font-size:1.2rem;box-shadow:0 6px 26px rgba(96,202,255,.18)}.brand span{color:var(--mint)}.top-pill,.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:#c5d5eb;font-size:.8rem}.dot{width:7px;height:7px;background:var(--mint);border-radius:50%;box-shadow:0 0 12px rgba(121,242,192,.8)}
+main{padding:54px 0 76px}.hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(240px,.65fr);gap:34px;align-items:center}.eyebrow{color:var(--mint);text-transform:uppercase;letter-spacing:.18em;font-size:.76rem;font-weight:850}.hero h1{font-size:clamp(2.7rem,7vw,5.6rem);line-height:.98;letter-spacing:-.065em;margin:17px 0 20px;max-width:760px}.hero h1 em{font-style:normal;color:var(--mint)}.lead{font-size:1.05rem;line-height:1.8;color:#bac9dd;max-width:700px}.chips{display:flex;gap:9px;flex-wrap:wrap;margin-top:23px}.orbit-card{min-height:250px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(150deg,rgba(30,58,89,.72),rgba(10,24,41,.8));display:grid;place-items:center;position:relative;overflow:hidden;padding:22px}.orbit{width:190px;height:190px;border:1px solid rgba(121,242,192,.34);border-radius:50%;display:grid;place-items:center;position:relative;box-shadow:0 0 50px rgba(65,190,169,.08),inset 0 0 35px rgba(65,190,169,.06)}.orbit:before,.orbit:after{content:"";position:absolute;border:1px solid rgba(134,184,255,.25);border-radius:50%;inset:24px}.orbit:after{inset:50px;border-color:rgba(121,242,192,.3)}.orbit-core{width:70px;height:70px;border-radius:23px;display:grid;place-items:center;background:linear-gradient(145deg,#a3ffe0,#79bfff);color:#071a2b;font-size:1.8rem;box-shadow:0 0 36px rgba(121,242,192,.25);z-index:1}.orbit-point{position:absolute;width:10px;height:10px;background:var(--mint);border-radius:50%;box-shadow:0 0 15px var(--mint)}.p1{top:25px;right:42px}.p2{bottom:30px;left:26px;background:var(--blue);box-shadow:0 0 15px var(--blue)}.p3{right:15px;bottom:66px;width:7px;height:7px}
+.section{margin-top:28px;border:1px solid var(--line);border-radius:24px;background:var(--panel);backdrop-filter:blur(12px);padding:clamp(20px,4vw,30px);box-shadow:0 16px 60px rgba(0,0,0,.12)}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.section h2{font-size:1.28rem;letter-spacing:-.025em;margin:0 0 8px}.muted{color:var(--muted);font-size:.92rem;line-height:1.75}.section-head .muted{margin:0;max-width:650px}.controls{display:grid;grid-template-columns:1fr auto auto;gap:11px;align-items:center;margin-top:22px}.select-wrap{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.88rem}.select-wrap select{min-width:120px;flex:1}select,button{min-height:48px;border-radius:13px;padding:12px 15px}select{background:#09182a;border:1px solid rgba(180,204,238,.25);color:#f5f8ff}button{border:0;background:linear-gradient(135deg,#9bffe0,#75d7ff);color:#052135;font-weight:850;cursor:pointer;transition:transform .15s ease,filter .15s ease}button:hover{filter:brightness(1.06);transform:translateY(-1px)}button.secondary{background:rgba(134,184,255,.1);border:1px solid rgba(134,184,255,.3);color:#dceaff}button:disabled{opacity:.5;cursor:not-allowed;transform:none}#status{white-space:pre-wrap;color:#dceaff;line-height:1.7;min-height:1.6em;margin:16px 0 0}.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.result-panel{min-width:0;border:1px solid var(--line);border-radius:20px;padding:22px;background:rgba(7,17,31,.5)}.result-panel h2{font-size:1.05rem;margin:0 0 7px}.result-panel .muted{margin:0 0 14px}.tile{border:1px solid var(--line);border-radius:14px;padding:15px;margin:12px 0;background:rgba(25,46,72,.45)}article strong,.tile strong{color:var(--mint)}#hotspots,#sources{overflow-wrap:anywhere}footer{padding:22px 0 30px;border-top:1px solid var(--line);color:var(--muted);font-size:.84rem;line-height:1.8}.footer-links{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px}.notice{border-color:rgba(255,209,128,.23);background:rgba(76,54,22,.2)}.notice strong{color:#ffd18a}
+@media(max-width:760px){main{padding-top:38px}.hero{grid-template-columns:1fr}.orbit-card{min-height:190px}.orbit{width:145px;height:145px}.orbit-core{width:58px;height:58px}.hero h1{font-size:clamp(2.8rem,13vw,4.6rem)}.results-grid{grid-template-columns:1fr}.controls{grid-template-columns:1fr 1fr}.select-wrap{grid-column:1/-1}.controls button{width:100%}.section-head{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="brand-mark" aria-hidden="true">⌁</div><div>DREAM <span>WI-FI</span></div></div>
+  <div class="top-pill"><span class="dot" aria-hidden="true"></span> Discovery workspace</div>
+</header>
+<main>
+  <section class="hero" aria-labelledby="hero-title">
+    <div>
+      <div class="eyebrow">Dream Tunnel · One simple experience</div>
+      <h1 id="hero-title">Internet, <em>without the distance.</em></h1>
+      <p class="lead">Discover mapped public Wi-Fi locations and participating Dream Wi-Fi sources in a single, simple workspace. Choose your search radius, find sources, and check their reported availability.</p>
+      <div class="chips"><span class="chip">◉ Free & paid listings</span><span class="chip">⌖ Up to 500 km search</span><span class="chip">↗ Source status</span></div>
+    </div>
+    <div class="orbit-card" aria-hidden="true"><div class="orbit"><span class="orbit-point p1"></span><span class="orbit-point p2"></span><span class="orbit-point p3"></span><div class="orbit-core">⌁</div></div></div>
+  </section>
+
+  <section class="section" aria-labelledby="discover-title">
+    <div class="section-head"><div><div class="eyebrow">01 · Discover</div><h2 id="discover-title" style="margin-top:8px">Find internet sources</h2><p id="location" class="muted">Your location has not been requested yet. Allow location access to search around you.</p></div></div>
+    <div class="controls">
+      <div class="select-wrap"><label for="radius">Search radius</label><select id="radius" aria-label="Search radius"><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option><option value="200">200 km</option><option value="300">300 km</option><option value="400">400 km</option><option value="500" selected>500 km</option></select></div>
+      <button id="locate" type="button">Detect my location</button>
+      <button id="search" class="secondary" type="button">Search again</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="section" aria-label="Discovery results">
+    <div class="results-grid">
+      <div class="result-panel"><div class="eyebrow">02 · Public locations</div><h2 style="margin-top:8px">Public Wi-Fi map results</h2><p id="hotspot-summary" class="muted">Mapped venues tagged as offering Wi-Fi will appear here.</p><div id="hotspots" aria-live="polite"></div><p id="attribution" class="muted">Map data © OpenStreetMap contributors</p></div>
+      <div class="result-panel"><div class="eyebrow">03 · Participating sources</div><h2 style="margin-top:8px">Dream Wi-Fi sources</h2><p id="source-summary" class="muted">Participating sources and their reported connection status will appear here.</p><div id="sources" aria-live="polite"></div></div>
+    </div>
+  </section>
+
+  <section class="section" aria-label="Connection actions">
+    <div class="section-head"><div><div class="eyebrow">04 · Connect</div><h2 style="margin-top:8px">Choose how to continue</h2><p class="muted">Use the sharing setup for a source device, or find a participating source to pair a receiver and run a connection check.</p></div></div>
+    <div class="controls" style="grid-template-columns:1fr 1fr">
+      <a href="/share.html"><button type="button" style="width:100%">Share internet</button></a>
+      <a href="/receive.html"><button class="secondary" type="button" style="width:100%">Receive internet</button></a>
+    </div>
+  </section>
+
+  <section class="section notice">
+    <h2>Development build</h2>
+    <p class="muted">This development track is being tested. A source listing or online status is not by itself proof that internet traffic is flowing through the tunnel. Connection, browsing, background recovery and speed need end-to-end verification before a production update.</p>
+  </section>
+</main>
+<footer>
+  Dream Wi-Fi · Discovery workspace
+  <div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Acceptable use</a><a href="/support.html">Support</a></div>
+  <p>Public hotspot listings use © OpenStreetMap contributors. Data availability and accuracy vary by area.</p>
+</footer>
+<script src="/app.js" defer></script>
+</body>
+</html>

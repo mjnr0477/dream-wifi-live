@@ -12,6 +12,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiNetworkSuggestion;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -47,6 +48,7 @@ public final class RouterDiscoveryActivity extends Activity {
     private LinearLayout content;
     private TextView status;
     private WifiManager wifi;
+    private String pendingOpenSsid;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -128,6 +130,11 @@ public final class RouterDiscoveryActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == 412 && hasLocationPermission()) scanLocal();
         else if (requestCode == 412) status.setText("Allow location permission to scan Wi-Fi networks on this Android version.");
+        if (requestCode == 415 && pendingOpenSsid != null) {
+            if (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED) {
+                String ssid = pendingOpenSsid; pendingOpenSsid = null; suggestOpenNetwork(ssid);
+            } else Toast.makeText(this, "Nearby Wi-Fi permission was not granted.", Toast.LENGTH_LONG).show();
+        }
         if (requestCode == 413 && hasLocationPermission()) {
             if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 414);
@@ -222,12 +229,42 @@ public final class RouterDiscoveryActivity extends Activity {
             String security = r.capabilities == null || r.capabilities.isEmpty() ? "Security unknown" : r.capabilities;
             Button row = button(ssid + "  ·  " + r.level + " dBm\n" + security);
             row.setOnClickListener(v -> {
-                Toast.makeText(this, "Android controls Wi-Fi joining. Select this network in Wi-Fi settings and provide its password if required.", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+                String caps = r.capabilities == null ? "" : r.capabilities.toUpperCase(java.util.Locale.ROOT);
+                boolean open = !caps.contains("WEP") && !caps.contains("WPA") && !caps.contains("EAP")
+                        && !caps.contains("SAE") && !caps.contains("PSK");
+                if (open && r.SSID != null && !r.SSID.isEmpty()) {
+                    pendingOpenSsid = r.SSID;
+                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 415);
+                    } else { String ssid = pendingOpenSsid; pendingOpenSsid = null; suggestOpenNetwork(ssid); }
+                } else {
+                    Toast.makeText(this, "This network is secured or hidden. Android Wi-Fi settings will ask you to join it with the owner's permission.", Toast.LENGTH_LONG).show();
+                    startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+                }
             });
             content.addView(row);
         }
         addText("Stronger local signal is generally closer to 0 dBm. Android controls scan frequency and whether a network can be joined.");
+    }
+
+    private void suggestOpenNetwork(String ssid) {
+        if (wifi == null) { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); return; }
+        try {
+            WifiNetworkSuggestion suggestion = new WifiNetworkSuggestion.Builder()
+                    .setSsid(ssid)
+                    .setIsAppInteractionRequired(true)
+                    .build();
+            int result = wifi.addNetworkSuggestions(Collections.singletonList(suggestion));
+            if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) {
+                Toast.makeText(this, "Open-network suggestion sent to Android. Approve the system prompt if shown; connection and internet are not guaranteed.", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "Android did not accept the Wi-Fi suggestion (code " + result + "). Open Wi-Fi settings to connect.", Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Android controls this connection: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+        }
     }
 
     private void searchMappedPlaces() {

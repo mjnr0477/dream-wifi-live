@@ -28,6 +28,7 @@ command -v systemctl >/dev/null 2>&1 || fail "systemd is required; this installe
 node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' || fail "Node.js 18 or newer is required."
 [[ "$BASE_URL" == https://* ]] || fail "DREAM_WIFI_BASE_URL must use HTTPS."
 [[ -n "$SAFE_SOURCE_NAME" ]] || SAFE_SOURCE_NAME="Dream Wi-Fi Router Gateway"
+[[ ! -e "$ENV_FILE" ]] || fail "$ENV_FILE already exists; refusing to create a duplicate source credential. Stop the old service and revoke its source credential before reinstalling."
 
 if [[ -n "$SOURCE_LATITUDE" || -n "$SOURCE_LONGITUDE" ]]; then
   [[ -n "$SOURCE_LATITUDE" && -n "$SOURCE_LONGITUDE" ]] || fail "set both DREAM_WIFI_SOURCE_LATITUDE and DREAM_WIFI_SOURCE_LONGITUDE."

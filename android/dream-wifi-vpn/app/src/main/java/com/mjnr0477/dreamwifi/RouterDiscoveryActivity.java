@@ -182,7 +182,7 @@ starts here.", 29, 0xffffffff, true);
         mapCount = 0;
         if (wifi == null || !wifi.isWifiEnabled()) {
             addInfoCard("Turn on Wi-Fi", "Switch on Wi-Fi in Android settings, then tap Scan again.", "OPEN WI-FI SETTINGS", () -> startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)));
-            localCount = 1;
+            localCount = 0;
             loadMappedPlaces();
             return;
         }
@@ -366,6 +366,11 @@ starts here.", 29, 0xffffffff, true);
             startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
             return;
         }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 413);
+            Toast.makeText(this, "Allow Nearby devices permission, then tap Connect again.", Toast.LENGTH_LONG).show();
+            return;
+        }
         try {
             WifiNetworkSuggestion suggestion = new WifiNetworkSuggestion.Builder().setSsid(ssid).build();
             List<WifiNetworkSuggestion> suggestions = new ArrayList<>();
@@ -504,6 +509,8 @@ starts here.", 29, 0xffffffff, true);
             } else {
                 status.setText("Location permission was denied. Nearby scan and 500 km search may be restricted by Android.");
             }
+        } else if (requestCode == 413) {
+            Toast.makeText(this, hasLocationPermission() ? "Permission updated. Tap Connect again." : "Wi-Fi connection permission was not granted.", Toast.LENGTH_LONG).show();
         }
     }
 

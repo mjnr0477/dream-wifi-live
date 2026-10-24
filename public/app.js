@@ -8,6 +8,8 @@
     const expiry = $("source-pairing-expiry");
     if (!value || !expiry) return;
     const nativeApi = window["Dream" + "WifiNative"];
+    const pairingCard = $("source-pairing-card");
+    if (pairingCard) pairingCard.style.display = nativeApi ? "block" : "none";
     if (!nativeApi) { value.textContent = "Open in the Dream Wi-Fi app"; expiry.textContent = "The private code is visible only in the app on the source phone."; return; }
     try {
       const result = JSON.parse(nativeApi["getSource" + "PairingCode"]());

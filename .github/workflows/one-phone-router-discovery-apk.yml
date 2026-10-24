@@ -6,6 +6,12 @@ on:
     paths:
       - "android/dream-wifi-vpn/**"
       - ".github/workflows/one-phone-router-discovery-apk.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "android/dream-wifi-vpn/**"
+      - ".github/workflows/one-phone-router-discovery-apk.yml"
   workflow_dispatch:
 
 permissions:

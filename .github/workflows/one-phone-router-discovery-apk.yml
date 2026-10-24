@@ -24,12 +24,12 @@ jobs:
       - name: Check out isolated development branch
         uses: actions/checkout@v4
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
       - name: Install required Android NDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
       - name: Fetch pinned upstream TUN-to-SOCKS engine

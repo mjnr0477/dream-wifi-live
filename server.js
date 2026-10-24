@@ -110,8 +110,9 @@ app.get("/api/wifi/sources", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);
   const longitude = coordinate(req.query.longitude, -180, 180);
   const radiusKm = Number(req.query.radius_km || 300);
-  if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search nearby services." });
-  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 300." });
+  if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search participating sources." });
+  // Earth circumference is about 40,075 km; half-circumference covers every possible great-circle distance.
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 20040) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 20040." });
   const live = dreamWifiTunnel.getSources();
   const now = new Date().toISOString();
   for (const source of live) {
@@ -141,8 +142,17 @@ app.get("/api/wifi/sources", async (req, res) => {
     };
   }).filter(source => source.distance_km <= radiusKm)
     .sort((a, b) => a.distance_km - b.distance_km).slice(0, 200);
-  res.json({ success: true, radius_km: radiusKm, sources, count: sources.length, online_count: sources.filter(source => source.connected).length,
-    note: "Online means the source relay is connected. internet_ready is a separate source-side DNS/TCP reachability probe, not proof that a receiver's end-to-end relay test will succeed." });
+  res.json({
+    success: true,
+    radius_km: radiusKm,
+    worldwide: radiusKm >= 20040,
+    sources,
+    count: sources.length,
+    online_count: sources.filter(source => source.connected).length,
+    note: radiusKm >= 20040
+      ? "Worldwide search covers the registered Dream Wi-Fi source directory only; it cannot discover ordinary Wi-Fi routers that have not joined Dream Wi-Fi. Results are capped at 200."
+      : "Online means the source relay is connected. internet_ready is a separate source-side DNS/TCP reachability probe, not proof that a receiver's end-to-end relay test will succeed."
+  });
 });
 app.get("/api/wifi/hotspots", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);

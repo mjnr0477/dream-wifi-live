@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f4f7fc">
+<title>Dream Wi-Fi · Wi-Fi discovery</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#14213a;background:#f4f7fc}*{box-sizing:border-box}body{margin:0}header,main,footer{width:min(920px,calc(100% - 28px));margin:auto}header{padding:18px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #dfe7f2}.brand{font-size:1.2rem;font-weight:850;color:#1746a2}main{padding:20px 0 42px}.hero{padding:24px;border-radius:22px;background:linear-gradient(135deg,#123f9e,#1767ed);color:#fff}.hero h1{margin:0 0 8px;font-size:clamp(1.8rem,6vw,3rem);line-height:1.08}.hero p{margin:0;color:#e3edff;line-height:1.65}.card{background:#fff;border:1px solid #e0e8f3;border-radius:18px;padding:18px;margin-top:16px;box-shadow:0 5px 18px #152c5008}.card h2{margin:0 0 6px;font-size:1.2rem}.muted{color:#66738a;line-height:1.6;font-size:.92rem}button,select{font:inherit;min-height:46px;border-radius:12px;padding:10px 13px}button{border:0;background:#155eef;color:white;font-weight:750;cursor:pointer}button.secondary{background:#e8efff;color:#1746a2}button:disabled{opacity:.5}select{border:1px solid #cbd6e7;background:white;min-width:130px;flex:1}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:12px}.tile{border:1px solid #e2eaf5;border-radius:13px;padding:13px;margin-top:10px;overflow-wrap:anywhere}.tile strong{color:#1746a2}.pill{display:inline-block;border-radius:99px;padding:3px 9px;background:#eaf2ff;color:#1746a2;font-size:.78rem;font-weight:750}.warning{background:#fff8e6;color:#6c5116;border:1px solid #f2dda8;border-radius:12px;padding:12px;font-size:.9rem;line-height:1.55}#status{white-space:pre-wrap;line-height:1.6;min-height:1.4em}a{color:#155eef;font-weight:700}footer{padding:20px 0 28px;color:#68758c;font-size:.85rem}@media(min-width:650px){.columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.columns .card{margin-top:16px}}
+</style>
+</head>
+<body>
+<header><div class="brand">⌁ Dream Wi-Fi</div><a href="/">Home</a></header>
+<main>
+<section class="hero"><h1>Find your next connection</h1><p>Search Wi-Fi your phone can see, discover participating Dream Wi-Fi sources worldwide, and explore mapped public hotspots. Each type is labelled separately.</p></section>
+<section class="card">
+<h2>Discovery range</h2><p class="muted">Worldwide applies to participating Dream Wi-Fi sources. Public hotspot maps are searched locally because map providers limit geographic query size.</p>
+<div class="row"><label for="source-range">Dream Wi-Fi sources</label><select id="source-range"><option value="25">Within 25 km</option><option value="100">Within 100 km</option><option value="300" selected>Within 300 km</option><option value="world">Worldwide</option></select><button id="search-all">Search online</button></div>
+<p id="status" role="status" aria-live="polite">Allow location access to calculate distances and search.</p>
+</section>
+<div class="columns">
+<section class="card"><h2>Wi-Fi networks nearby</h2><p class="muted">Scans Wi-Fi networks visible to this phone's radio. Android may require location permission and location services. Tap a network to open Android Wi-Fi settings and choose it.</p><button id="scan-local">Scan physical Wi-Fi</button><div id="local-results"></div><p class="muted">Dream Wi-Fi cannot silently join networks or bypass passwords. Android controls the final connection.</p></section>
+<section class="card"><h2>Participating Dream Wi-Fi sources</h2><p id="sources-summary" class="muted">Not searched yet.</p><div id="sources-results"></div></section>
+</div>
+<section class="card"><h2>Mapped public Wi-Fi places</h2><p class="muted">These are map listings, not live radio scans and not proof that access is free or available. The public map is limited to a 300 km search radius.</p><div class="row"><label for="map-range">Map radius</label><select id="map-range"><option value="25">25 km</option><option value="100">100 km</option><option value="300" selected>300 km</option></select><button id="search-map" class="secondary">Search map</button></div><p id="map-summary" class="muted">Not searched yet.</p><div id="map-results"></div><p class="muted">Map data © OpenStreetMap contributors.</p></section>
+<section class="card"><h2>What the results mean</h2><p class="muted">A nearby SSID is only a radio-visible network. A mapped hotspot is a directory entry. A Dream Wi-Fi source is a device registered with Dream Wi-Fi. Only a participating source that is online, authorized, and passing connectivity tests can potentially provide remote internet.</p></section>
+</main>
+<footer>Dream Wi-Fi prototype · Use only networks you are authorized to access.</footer>
+<script src="/discovery.js" defer></script>
+</body></html>

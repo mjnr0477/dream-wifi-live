@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   signed-release:
+    if: github.ref_name != 'idea/500km-one-app-development-v2'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

@@ -54,7 +54,7 @@ else
 fi
 npm --prefix "$INSTALL_DIR" install --omit=dev --no-audit --no-fund
 
-TUNNEL_URL="$(printf '%s' "$BASE_URL" | sed 's#^https:#wss:#')"
+TUNNEL_URL="$(printf '%s' "$BASE_URL" | sed 's#^https:#wss:#')/api/dream-wifi/tunnel"
 umask 077
 {
   printf "DREAM_WIFI_TUNNEL_URL=%s\n" "$TUNNEL_URL"

@@ -15,15 +15,16 @@ if (!token && !/^[A-F0-9]{12}$/.test(code)) throw new Error("Set DREAM_WIFI_ACCE
 
 function connect() {
   const socket = new WebSocket(url, { handshakeTimeout: 15000, perMessageDeflate: false });
-  const queue = [], waiters = [];
+  const queue = [], waiters = [], listeners = new Set();
   socket.on("message", raw => {
     let msg; try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
+    for (const listener of listeners) { try { listener(msg); } catch (_) {} }
     const index = waiters.findIndex(w => w.predicate(msg));
     if (index >= 0) { const w = waiters.splice(index, 1)[0]; clearTimeout(w.timer); w.resolve(msg); }
     else queue.push(msg);
   });
   socket.on("error", error => waiters.splice(0).forEach(w => { clearTimeout(w.timer); w.reject(error); }));
-  return { socket, next(predicate, label) {
+  return { socket, onMessage(listener) { listeners.add(listener); return () => listeners.delete(listener); }, next(predicate, label) {
     const index = queue.findIndex(predicate);
     if (index >= 0) return Promise.resolve(queue.splice(index, 1)[0]);
     return new Promise((resolve, reject) => {
@@ -46,6 +47,7 @@ function verifyHttps(endpoint, id) {
     let secure;
     const finish = (error, result) => {
       if (settled) return; settled = true; clearTimeout(timer);
+      if (typeof unsubscribe === "function") unsubscribe();
       try { secure.destroy(); } catch (_) {}
       if (error) reject(error); else resolve(result);
     };
@@ -66,6 +68,17 @@ function verifyHttps(endpoint, id) {
       final(callback) {
         if (endpoint.socket.readyState === WebSocket.OPEN) endpoint.socket.send(JSON.stringify({type:"tcp-close",id}), callback);
         else callback();
+      }
+    });
+    const unsubscribe = endpoint.onMessage(message => {
+      if (message.id !== id) return;
+      if (message.type === "tcp-data") {
+        try { relay.push(Buffer.from(message.data || "", "base64")); }
+        catch (error) { finish(error); }
+      } else if (message.type === "tcp-close") {
+        relay.push(null);
+      } else if (message.type === "tcp-error") {
+        finish(new Error("Remote source TCP relay failed: " + String(message.error || "unknown error")));
       }
     });
     secure = tls.connect({socket:relay,servername:"example.com",rejectUnauthorized:true,ALPNProtocols:["http/1.1"]});

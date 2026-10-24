@@ -9,6 +9,7 @@ BASE_URL="${BASE_URL%/}"
 REPO_URL="${DREAM_WIFI_REPO_URL:-https://github.com/mjnr0477/dream-wifi-live.git}"
 REPO_BRANCH="${DREAM_WIFI_REPO_BRANCH:-main}"
 SOURCE_NAME="${DREAM_WIFI_SOURCE_NAME:-$(hostname 2>/dev/null || echo Dream-WiFi-Router)}"
+SAFE_SOURCE_NAME="$(printf '%s' "$SOURCE_NAME" | tr -d '\r\n')"
 SOURCE_LATITUDE="${DREAM_WIFI_SOURCE_LATITUDE:-}"
 SOURCE_LONGITUDE="${DREAM_WIFI_SOURCE_LONGITUDE:-}"
 INSTALL_DIR="/opt/dream-wifi-source"
@@ -26,7 +27,7 @@ command -v python3 >/dev/null 2>&1 || fail "python3 is required."
 command -v systemctl >/dev/null 2>&1 || fail "systemd is required; this installer targets Debian/Ubuntu/Raspberry Pi OS or another systemd Linux host."
 node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' || fail "Node.js 18 or newer is required."
 [[ "$BASE_URL" == https://* ]] || fail "DREAM_WIFI_BASE_URL must use HTTPS."
-[[ -n "$SOURCE_NAME" ]] || SOURCE_NAME="Dream Wi-Fi Router Gateway"
+[[ -n "$SAFE_SOURCE_NAME" ]] || SAFE_SOURCE_NAME="Dream Wi-Fi Router Gateway"
 
 if [[ -n "$SOURCE_LATITUDE" || -n "$SOURCE_LONGITUDE" ]]; then
   [[ -n "$SOURCE_LATITUDE" && -n "$SOURCE_LONGITUDE" ]] || fail "set both DREAM_WIFI_SOURCE_LATITUDE and DREAM_WIFI_SOURCE_LONGITUDE."
@@ -75,7 +76,7 @@ umask 077
   printf 'DREAM_WIFI_TUNNEL_URL=%s\n' "${BASE_URL/https:/wss:}/api/dream-wifi/tunnel"
   printf 'DREAM_WIFI_SOURCE_ID=%s\n' "$SOURCE_ID"
   printf 'DREAM_WIFI_SOURCE_TOKEN=%s\n' "$SOURCE_TOKEN"
-  printf 'DREAM_WIFI_SOURCE_NAME=%s\n' "${SOURCE_NAME//[$'\\r\\n']/}"
+  printf 'DREAM_WIFI_SOURCE_NAME=%s\n' "$SAFE_SOURCE_NAME"
   [[ -z "$SOURCE_LATITUDE" ]] || printf 'DREAM_WIFI_SOURCE_LATITUDE=%s\n' "$SOURCE_LATITUDE"
   [[ -z "$SOURCE_LONGITUDE" ]] || printf 'DREAM_WIFI_SOURCE_LONGITUDE=%s\n' "$SOURCE_LONGITUDE"
 } > "$ENV_FILE"
@@ -116,7 +117,7 @@ fi
 
 printf '\nDream Wi-Fi router gateway installed and service is active.\n'
 printf 'Source ID: %s\n' "$SOURCE_ID"
-printf 'Source name: %s\n' "$SOURCE_NAME"
+printf 'Source name: %s\n' "$SAFE_SOURCE_NAME"
 printf 'Service status: systemctl status dream-wifi-source.service\n'
 printf 'Logs: journalctl -u dream-wifi-source.service -f\n'
 printf 'To stop sharing: sudo systemctl disable --now dream-wifi-source.service\n'

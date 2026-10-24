@@ -111,7 +111,7 @@ app.get("/api/wifi/sources", async (req, res) => {
   const longitude = coordinate(req.query.longitude, -180, 180);
   const radiusKm = Number(req.query.radius_km || 300);
   if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search nearby services." });
-  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 300." });
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 500) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 500." });
   const live = dreamWifiTunnel.getSources();
   const now = new Date().toISOString();
   for (const source of live) {
@@ -149,7 +149,7 @@ app.get("/api/wifi/hotspots", async (req, res) => {
   const longitude = coordinate(req.query.longitude, -180, 180);
   const radiusKm = Number(req.query.radius_km || 300);
   if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search public hotspots." });
-  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 300." });
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 500) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 500." });
   try {
     const result = await fetchPublicHotspots({ latitude, longitude, radiusKm });
     res.set("Cache-Control", "public, max-age=300");

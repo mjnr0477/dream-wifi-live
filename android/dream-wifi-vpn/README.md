@@ -51,12 +51,12 @@ Back up the keystore securely: losing it can prevent updates to the same Android
 
 ## Configure the standalone service host
 
-Build with the deployed Dream Wi-Fi base URL:
+For this development branch, configure a separate development backend URL. The app deliberately does not fall back to the published Dream Wi-Fi service:
 
 ```sh
-./gradlew assembleDebug -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_HOST
+gradle --no-daemon -PDREAM_WIFI_BASE_URL=https://YOUR_DREAM_WIFI_DEV_HOST :app:assembleDebug
 ```
 
-The core VPN flow uses standalone source enrollment and one-time source pairing; it does not require Dream Education login or source-ticket endpoints. Before each release, confirm the APK's `DREAM_WIFI_BASE_URL` matches the production backend and that the exact backend commit is live. A successful APK build alone does not prove runtime compatibility.
+The native discovery screen loads `DREAM_WIFI_BASE_URL + /discovery.html`. Leave the value unset during UI-only builds; the app will show a development setup message instead of contacting production. The core VPN flow uses standalone source enrollment and one-time source pairing; it does not require Dream Education login or source-ticket endpoints. A successful APK build alone does not prove runtime compatibility.
 
 **Release status:** not ready for public distribution until live source enrollment and restart recovery, backend/app version alignment, signed release packaging, and all physical-device acceptance tests above pass. Keep release work blocked until those gates have dated evidence.

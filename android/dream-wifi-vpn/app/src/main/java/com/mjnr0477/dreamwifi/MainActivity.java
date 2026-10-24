@@ -115,7 +115,7 @@ public final class MainActivity extends Activity {
         page.addView(brand, fullWidth());
 
         TextView title = new TextView(this);
-        title.setText("Internet, without\\nthe distance.");
+        title.setText("Internet, without\nthe distance.");
         title.setTextColor(Color.WHITE);
         title.setTextSize(32);
         title.setLineSpacing(dp(1), 1.0f);
@@ -467,11 +467,11 @@ public final class MainActivity extends Activity {
                         : result.capabilities != null && result.capabilities.contains("EAP") ? "Enterprise"
                         : result.capabilities != null && result.capabilities.contains("SAE") ? "Secured"
                         : "Open or unknown";
-                if (i > 0) text.append("\\n");
+                if (i > 0) text.append("\n");
                 text.append("• ").append(ssid).append(" · ").append(result.level).append(" dBm · ")
                         .append(result.frequency).append(" MHz · ").append(security);
             }
-            if (results.size() > shown) text.append("\\n+ ").append(results.size() - shown).append(" more networks");
+            if (results.size() > shown) text.append("\n+ ").append(results.size() - shown).append(" more networks");
             nearbyWifiResults.setText(text.toString());
         } catch (SecurityException error) {
             nearbyWifiResults.setText("Android did not allow scan results. Check location and nearby Wi-Fi permissions.");

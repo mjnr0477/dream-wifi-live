@@ -156,7 +156,23 @@ public final class RouterDiscoveryActivity extends Activity {
         page.addView(results);
         addEmptyState();
 
-        TextView footer = text("A real Wi-Fi signal is connectable only when your phone can detect it. Mapped places are leads, not live routers; they cannot be joined from a map pin alone. Passwords and joining approvals stay under your control.", 12, 0xff77849a, false);
+        LinearLayout remoteCard = card();
+        remoteCard.addView(text("Connect to a remote router", 18, 0xff172b50, true));
+        TextView remoteDescription = text("Use an authorized Dream Wi-Fi gateway at the remote router site. Enter its one-time code and route supported internet traffic through that connection.", 13, 0xff63728a, false);
+        remoteDescription.setPadding(0, dp(8), 0, dp(10));
+        remoteCard.addView(remoteDescription);
+        Button remoteConnect = smallButton("CONNECT TO REMOTE ROUTER");
+        remoteConnect.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra("open_receive_dialog", true);
+            startActivity(intent);
+        });
+        remoteCard.addView(remoteConnect, new LinearLayout.LayoutParams(-1, dp(46)));
+        LinearLayout.LayoutParams remoteLp = new LinearLayout.LayoutParams(-1, -2);
+        remoteLp.topMargin = dp(16);
+        page.addView(remoteCard, remoteLp);
+
+        TextView footer = text("A real Wi-Fi signal is connectable only when your phone can detect it. Mapped places are leads, not live routers; remote connections require an authorized gateway. Passwords and joining approvals stay under your control.", 12, 0xff77849a, false);
         footer.setLineSpacing(dp(3), 1f);
         footer.setPadding(dp(3), dp(20), dp(3), 0);
         page.addView(footer);

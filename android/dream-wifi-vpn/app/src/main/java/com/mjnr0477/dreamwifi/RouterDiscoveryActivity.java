@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
@@ -236,11 +237,49 @@ starts here.", 29, 0xffffffff, true);
 
     private void loadMappedPlaces() {
         Location location = lastKnownLocation();
-        if (location == null) {
-            addInfoCard("Location not available", "Turn on device Location and allow Dream Wi-Fi location permission to search mapped places within 500 km.", null, null);
-            finishScan("Nearby radio scan complete. Map search needs your current location.");
+        if (location != null) {
+            fetchMappedPlaces(location);
             return;
         }
+        LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (manager == null || !hasLocationPermission()) {
+            addInfoCard("Location not available", "Turn on device Location and allow Dream Wi-Fi location permission to search mapped places within 500 km.", null, null);
+            finishScan("Nearby radio scan complete. Map search needs current location.");
+            return;
+        }
+
+        status.setText("Getting your current location for the 500 km search…");
+        final boolean[] completed = {false};
+        final LocationListener listener = new LocationListener() {
+            @Override public void onLocationChanged(Location location) {
+                if (completed[0] || location == null) return;
+                completed[0] = true;
+                scanHandler.removeCallbacksAndMessages(null);
+                try { manager.removeUpdates(this); } catch (Exception ignored) {}
+                fetchMappedPlaces(location);
+            }
+        };
+        Runnable timeout = () -> {
+            if (completed[0]) return;
+            completed[0] = true;
+            try { manager.removeUpdates(listener); } catch (Exception ignored) {}
+            addInfoCard("Could not get your location", "Enable Location services, step outside or near a window, then scan again. Nearby Wi-Fi results are still shown.", "RETRY SCAN", this::scanEverything);
+            finishScan("Nearby scan finished. Map search needs a current location fix.");
+        };
+        scanHandler.postDelayed(timeout, 12000L);
+        boolean requested = false;
+        try {
+            for (String provider : manager.getProviders(true)) {
+                try {
+                    manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper());
+                    requested = true;
+                } catch (SecurityException | IllegalArgumentException ignored) {}
+            }
+        } catch (SecurityException ignored) {}
+        if (!requested) scanHandler.post(timeout);
+    }
+
+    private void fetchMappedPlaces(Location location) {
         worker.execute(() -> {
             HttpURLConnection connection = null;
             try {

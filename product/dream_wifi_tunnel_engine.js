@@ -119,12 +119,15 @@ function attachDreamWifiTunnel(server, options = {}) {
   function hashCredential(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
   function issuePairingCode(sourceSocket) {
     const now = Date.now();
-    for (const [hash, pairing] of pairingCodes.entries()) if (pairing.expiresAt <= now) pairingCodes.delete(hash);
+    for (const [hash, pairing] of pairingCodes.entries()) {
+      if (pairing.expiresAt <= now || pairing.sourceId === sourceSocket.dreamSourceId) pairingCodes.delete(hash);
+    }
     for (const [hash, credential] of pairingTokens.entries()) if (credential.expiresAt <= now) pairingTokens.delete(hash);
     for (const [ip, attempt] of pairingAttempts.entries()) if (attempt.resetAt <= now) pairingAttempts.delete(ip);
     const code = crypto.randomBytes(6).toString("hex").toUpperCase();
     const expiresAt = now + PAIRING_CODE_TTL_MS;
     pairingCodes.set(hashCredential(code), { sourceId: sourceSocket.dreamSourceId, expiresAt });
+    sourceSocket.dreamLastPairingCodeAt = now;
     send(sourceSocket, { type: "pairing-code", code, expiresAt, expiresInSeconds: PAIRING_CODE_TTL_MS / 1000 });
   }
   function registerOwner(socket, sourceId, accessToken, expiresAt) {
@@ -333,6 +336,16 @@ function attachDreamWifiTunnel(server, options = {}) {
           return;
         }
         reject(socket, "Unsupported endpoint role.");
+        return;
+      }
+
+      if (socket.dreamRole === "source" && message.type === "request-pairing-code") {
+        const lastIssuedAt = Number(socket.dreamLastPairingCodeAt || 0);
+        if (Date.now() - lastIssuedAt < 60 * 1000) {
+          send(socket, { type: "pairing-code-rate-limited", retryAfterSeconds: Math.ceil((60 * 1000 - (Date.now() - lastIssuedAt)) / 1000) });
+          return;
+        }
+        issuePairingCode(socket);
         return;
       }
 

@@ -86,6 +86,13 @@ async function main() {
     assert.equal(sourceRegistered.sourceId, "integration-source");
     const pairing = await source.next(m => m.type === "pairing-code", "one-time pairing code");
 
+    // Discovery must distinguish an online gateway from one whose router internet works.
+    source.socket.send(JSON.stringify({
+      type: "source-health",
+      ready: true,
+      checkedAt: new Date().toISOString()
+    }));
+
     await rejectedPairing(url, "NOT-A-VALID-CODE", "invalid pairing code rejection");
 
     const originalNow = Date.now;
@@ -105,6 +112,20 @@ async function main() {
     const accessToken = ownerRegistration.accessToken;
     const sourceList = await owner.next(m => m.type === "source-list", "owner source list");
     assert.deepEqual(sourceList.sources.map(item => item.id), ["integration-source"], "Paired receiver should only see its authorized source.");
+    assert.equal(sourceList.sources[0].internetReady, true,
+      "A fresh successful gateway health probe must be reported as internet-ready.");
+
+    source.socket.send(JSON.stringify({
+      type: "source-health",
+      ready: false,
+      error: "integration_test_no_internet"
+    }));
+    const unhealthySourceList = await owner.next(
+      m => m.type === "source-list" && m.sources.some(item => item.id === "integration-source" && item.internetReady === false),
+      "updated source list after gateway internet failure"
+    );
+    assert.equal(unhealthySourceList.sources[0].internetReady, false,
+      "A failed gateway health probe must remove the internet-ready status.");
 
     await rejectedPairing(url, pairing.code, "one-time pairing code reuse rejection");
 

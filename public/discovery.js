@@ -4,6 +4,9 @@
   const API = location.origin;
   let position = null;
   let locationPromise = null;
+  let locationWatchId = null;
+  let lastAutoRefreshAt = 0;
+  let autoRefreshRunning = false;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
   function distanceKm(aLat, aLon, bLat, bLon) {
     const rad = n => n * Math.PI / 180;
@@ -33,12 +36,16 @@
   }
   function renderSources(data) {
     $("sources-results").replaceChildren();
-    $("sources-summary").textContent = data.count + " registered source(s) found · " + data.online_count + " relay connected · " + data.radius_km + " km search radius";
+    $("sources-summary").textContent = data.count + " registered source(s) found · " + data.online_count + " relay connected · " + data.radius_km + " km search radius · internet-ready sources prioritized; speed is not measured yet";
     if (!data.sources.length) {
       $("sources-results").innerHTML = '<p class="muted">No registered source with known coordinates was found in this search. This does not mean there are no ordinary Wi-Fi networks in the area.</p>';
       return;
     }
-    for (const source of data.sources) {
+    const rankedSources = [...data.sources].sort((a, b) => {
+      const priority = source => source.connected && source.internet_ready === true ? 0 : source.connected ? 1 : 2;
+      return priority(a) - priority(b) || Number(a.distance_km) - Number(b.distance_km);
+    });
+    for (const source of rankedSources) {
       const item = document.createElement("article"); item.className = "tile";
       const state = source.connected ? "Relay online" : "Offline";
       const internet = source.internet_ready === true ? "Source internet probe passed" : source.internet_ready === false ? "Source internet probe failed" : "Internet not verified";
@@ -83,6 +90,7 @@
     renderHotspots(await json(API + "/api/wifi/hotspots?" + params));
   }
   async function searchAll() {
+    lastAutoRefreshAt = Date.now();
     $("search-all").disabled = true;
     try {
       await searchSources();
@@ -140,16 +148,38 @@
     note.textContent = data.note || "Networks shown are within local radio range. A scan result does not mean the network is open or has internet.";
     root.appendChild(note);
   }
-  $("scan-local").addEventListener("click", () => {
+  function startLocationWatch() {
+    if (locationWatchId !== null || !navigator.geolocation) return;
+    locationWatchId = navigator.geolocation.watchPosition(p => {
+      const next = { latitude:p.coords.latitude, longitude:p.coords.longitude };
+      const moved = !position || distanceKm(position.latitude, position.longitude, next.latitude, next.longitude) >= 2;
+      const refreshDue = Date.now() - lastAutoRefreshAt >= 15 * 60 * 1000;
+      position = next;
+      if ((moved || refreshDue) && !autoRefreshRunning) {
+        autoRefreshRunning = true;
+        searchAll().catch(e => { $("status").textContent = "Automatic map refresh failed: " + e.message; }).finally(() => { autoRefreshRunning = false; });
+      }
+    }, () => { $("status").textContent = "Live location updates paused. Check location permission and Android battery settings."; },
+    { enableHighAccuracy:false, maximumAge:120000, timeout:20000 });
+  }
+
+  $("scan-local").addEventListener("click", async () => {
     const native = window.DreamWifiNative;
     if (!native || typeof native.requestLocalWifiScan !== "function") {
       $("local-results").innerHTML = '<p class="warning">Physical Wi-Fi scanning is available in the Android app. On a browser, use your device Wi-Fi settings to scan nearby networks.</p>';
       return;
     }
     $("scan-local").disabled = true;
-    $("local-results").textContent = "Scanning Wi-Fi networks visible to this phone…";
+    $("local-results").textContent = "Requesting an Android Wi-Fi scan… Android may return cached results first.";
     try {
-      const data = JSON.parse(native.requestLocalWifiScan());
+      let data = JSON.parse(native.requestLocalWifiScan());
+      // Android Wi-Fi scans are asynchronous. Re-read the platform results after
+      // the scan has had time to complete instead of treating cached results as final.
+      for (let attempt = 0; attempt < 2 && data.scan_started === true; attempt++) {
+        $("local-results").textContent = "Waiting for Android to refresh nearby Wi-Fi results… (" + (attempt + 1) + "/2)";
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        data = JSON.parse(native.requestLocalWifiScan());
+      }
       renderLocal(data);
     } catch (e) { $("local-results").textContent = "Could not scan Wi-Fi: " + e.message; }
     finally { $("scan-local").disabled = false; }
@@ -162,5 +192,5 @@
   });
   $("source-range").addEventListener("change", () => { if (position) searchSources().catch(e => $("status").textContent = e.message); });
   $("map-range").addEventListener("change", () => { if (position) searchMap().catch(e => $("map-summary").textContent = e.message); });
-  locate().then(() => searchAll()).catch(e => { $("status").textContent = e.message + " Tap Search online after allowing location."; });
+  locate().then(() => searchAll()).then(startLocationWatch).catch(e => { $("status").textContent = e.message + " Tap Search online after allowing location."; });
 })();

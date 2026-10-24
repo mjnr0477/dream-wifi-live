@@ -14,6 +14,7 @@ const androidBuild = read("android/dream-wifi-vpn/app/build.gradle");
 const activity = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/MainActivity.java");
 const dashboard = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/DashboardActivity.java");
 const service = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/DreamVpnService.java");
+const locationService = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/LocationDiscoveryService.java");
 const nativeRelay = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/DreamWifiRelay.java");
 const credentialStore = read("android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/DreamWifiCredentialStore.java");
 const workflow = read(".github/workflows/dream-wifi-android-vpn.yml");
@@ -33,6 +34,19 @@ assert.doesNotMatch(service, /com\.dreameducation\.wifi\.|com\.dreamwifi\.androi
 assert.match(manifest, /android\.net\.VpnService/);
 assert.match(manifest, /BIND_VPN_SERVICE/);
 assert.match(manifest, /FOREGROUND_SERVICE/);
+assert.match(manifest, /ACCESS_BACKGROUND_LOCATION/);
+assert.match(manifest, /FOREGROUND_SERVICE_LOCATION/);
+assert.match(manifest, /LocationDiscoveryService.*foregroundServiceType="location"/);
+assert.match(activity, /ensureAutomaticDiscovery\(\)/);
+assert.match(activity, /DISCOVERY_LOCATION_REQUEST/);
+assert.match(activity, /Allow all the time/);
+assert.match(locationService, /startForeground\(NOTIFICATION_ID/);
+assert.match(locationService, /LocationManager\.NETWORK_PROVIDER/);
+assert.match(locationService, /LocationManager\.GPS_PROVIDER/);
+assert.match(locationService, /radius_km=500/);
+assert.match(locationService, /MIN_REFRESH_MS/);
+assert.match(locationService, /START_STICKY/);
+assert.doesNotMatch(locationService, /dream-wifi-live\.onrender\.com/, "Background discovery must use the configured development backend only.");
 assert.match(service, /TProxyStartService/);
 assert.match(service, /addRoute\("0\.0\.0\.0",\s*0\)/);
 assert.match(service, /addRoute\("::",\s*0\)/);
@@ -64,6 +78,10 @@ assert.match(service, /DreamWifiCredentialStore\.saveReceiver/);
 assert.match(service, /DreamWifiCredentialStore\.clearReceiver/);
 assert.match(service, /restoreStartIntent/);
 assert.match(service, /registerWifiNetworkCallback/);
+assert.match(service, /if \(capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)\) \{\s*return true;\s*\}/,
+  "An authorized Wi-Fi source must remain selectable while Android marks its portal as unvalidated.");
+assert.match(service, /return capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_CELLULAR\)\s*&& capabilities\.hasCapability\(NetworkCapabilities\.NET_CAPABILITY_VALIDATED\);/,
+  "Cellular source fallback must still require a validated network.");
 assert.match(service, /maybeReconnectSourceOnNetwork/);
 assert.match(service, /NET_CAPABILITY_VALIDATED/);
 assert.match(service, /EXTRA_SOURCE_NETWORK/);

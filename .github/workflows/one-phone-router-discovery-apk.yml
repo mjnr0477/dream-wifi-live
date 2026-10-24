@@ -1,0 +1,65 @@
+name: One-phone router discovery APK
+on:
+  push:
+    branches:
+      - idea/500km-one-phone-router-discovery
+    paths:
+      - "android/dream-wifi-vpn/**"
+      - "product/dream_wifi_tunnel_engine.js"
+      - "scripts/dream-wifi-source-agent.js"
+      - "scripts/dream-wifi-pairing-refresh-test.js"
+      - "package.json"
+      - ".github/workflows/one-phone-router-discovery-apk.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "android/dream-wifi-vpn/**"
+      - ".github/workflows/one-phone-router-discovery-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out isolated development branch
+        uses: actions/checkout@v4
+      - name: Validate remote router gateway installer syntax
+        run: bash -n scripts/dream-wifi-router-gateway-install.sh
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install required Android NDK
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Fetch pinned upstream TUN-to-SOCKS engine
+        working-directory: android/dream-wifi-vpn/app
+        run: |
+          git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git
+          cd hev-socks5-tunnel
+          git checkout 9b2c2320b26046b307abd6ddb5f102b2ccd1d4a4
+          git submodule update --init --recursive
+          sed -i 's/#define PKGNAME hev\/htproxy/#define PKGNAME com\/mjnr0477\/dreamwifi/' src/hev-jni.c
+          sed -i 's/#define CLSNAME TProxyService/#define CLSNAME DreamVpnService/' src/hev-jni.c
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        working-directory: android/dream-wifi-vpn
+        env:
+          DREAM_WIFI_BASE_URL: https://dream-wifi-live.onrender.com
+        run: gradle --no-daemon clean assembleDebug
+      - name: Upload debug APK for testing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: dream-wifi-one-phone-router-discovery-debug
+          path: android/dream-wifi-vpn/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiNetworkSuggestion;
 import android.location.LocationManager;
 import android.provider.Settings;
 import android.os.Bundle;
@@ -152,7 +153,8 @@ public final class DashboardActivity extends Activity {
                     item.put("ssid", ssid); item.put("level_dbm", scan.level);
                     String caps = scan.capabilities == null ? "" : scan.capabilities;
                     item.put("capabilities", caps);
-                    item.put("security", caps.contains("PSK") || caps.contains("SAE") || caps.contains("EAP") || caps.contains("WEP") ? "Secured" : "Open or unknown — verify");
+                    boolean secured = caps.contains("PSK") || caps.contains("SAE") || caps.contains("EAP") || caps.contains("WEP") || caps.contains("OWE");
+                    item.put("security", secured ? "Secured" : (caps.contains("ESS") ? "Open" : "Unknown"));
                     networks.put(item);
                 }
                 org.json.JSONObject result = new org.json.JSONObject();
@@ -163,6 +165,26 @@ public final class DashboardActivity extends Activity {
             } catch (Exception error) { return "{\"status\":\"error\",\"networks\":[],\"message\":\"Wi-Fi scan failed. Check Wi-Fi and Location settings.\"}"; }
         }
 
+        @JavascriptInterface
+        public String suggestOpenWifi(String ssid) {
+            String networkName = ssid == null ? "" : ssid.trim();
+            if (networkName.isEmpty() || networkName.length() > 32) return "{\"status\":\"invalid_ssid\"}";
+            if (android.os.Build.VERSION.SDK_INT < 29) return "{\"status\":\"settings_required\"}";
+            if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> requestPermissions(new String[] { Manifest.permission.NEARBY_WIFI_DEVICES }, LOCATION_PERMISSION_REQUEST + 1));
+                return "{\"status\":\"permission_required\"}";
+            }
+            try {
+                WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                if (wifi == null) return "{\"status\":\"unavailable\"}";
+                WifiNetworkSuggestion suggestion = new WifiNetworkSuggestion.Builder().setSsid(networkName).build();
+                int result = wifi.addNetworkSuggestions(java.util.Collections.singletonList(suggestion));
+                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) return "{\"status\":\"suggested\"}";
+                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_DUPLICATE) return "{\"status\":\"already_suggested\"}";
+                return "{\"status\":\"settings_required\"}";
+            } catch (SecurityException error) { return "{\"status\":\"permission_required\"}";
+            } catch (Exception error) { return "{\"status\":\"settings_required\"}"; }
+        }
         @JavascriptInterface
         public void openWifiSettings() {
             runOnUiThread(() -> { try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); } catch (Exception error) { Toast.makeText(DashboardActivity.this, "Open Android Wi-Fi settings.", Toast.LENGTH_SHORT).show(); } });

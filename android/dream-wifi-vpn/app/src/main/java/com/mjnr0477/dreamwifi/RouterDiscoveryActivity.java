@@ -82,6 +82,10 @@ public final class RouterDiscoveryActivity extends Activity {
         scan.setOnClickListener(v -> scanLocal());
         root.addView(scan);
 
+        Button verify = button("Test real HTTPS internet");
+        verify.setOnClickListener(v -> verifyInternet());
+        root.addView(verify);
+
         Button map = button("Find mapped Wi-Fi places within 500 km");
         map.setOnClickListener(v -> searchMappedPlaces());
         root.addView(map);
@@ -167,6 +171,27 @@ public final class RouterDiscoveryActivity extends Activity {
         status.setText(validated ? "Internet: verified on the current connection." :
                 internet ? "Internet: network detected, but Android has not verified internet access." :
                 "Internet: no verified active connection.");
+    }
+
+    private void verifyInternet() {
+        status.setText("Testing a real HTTPS request over the phone's active connection…");
+        worker.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL("https://connectivitycheck.gstatic.com/generate_204").openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(10000);
+                connection.setInstanceFollowRedirects(false);
+                int code = connection.getResponseCode();
+                String result = code == 204
+                        ? "HTTPS test PASSED: the active connection reached the test endpoint."
+                        : "HTTPS test did not pass: HTTP " + code + ". This connection may require sign-in or block the test endpoint.";
+                runOnUiThread(() -> status.setText(result));
+            } catch (Exception e) {
+                runOnUiThread(() -> status.setText("HTTPS test FAILED: " + e.getMessage()));
+            } finally { if (connection != null) connection.disconnect(); }
+        });
     }
 
     private void scanLocal() {

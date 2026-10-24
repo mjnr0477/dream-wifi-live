@@ -1,6 +1,6 @@
 plugins { id "com.android.application" }
 
-def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "").toString().trim()
+def dreamWifiBaseUrl = (project.findProperty("DREAM_WIFI_BASE_URL") ?: System.getenv("DREAM_WIFI_BASE_URL") ?: "https://dream-wifi-500km-dev.onrender.com").toString().trim()
 while (dreamWifiBaseUrl.endsWith("/")) { dreamWifiBaseUrl = dreamWifiBaseUrl.substring(0, dreamWifiBaseUrl.length() - 1) }
 
 def releaseStorePath = System.getenv("ANDROID_KEYSTORE_PATH")

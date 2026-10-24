@@ -86,6 +86,10 @@ public final class RouterDiscoveryActivity extends Activity {
         map.setOnClickListener(v -> searchMappedPlaces());
         root.addView(map);
 
+        Button background = button("Enable background discovery");
+        background.setOnClickListener(v -> enableBackgroundDiscovery());
+        root.addView(background);
+
         Button settings = button("Open Android Wi-Fi settings");
         settings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)));
         root.addView(settings);
@@ -120,6 +124,38 @@ public final class RouterDiscoveryActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == 412 && hasLocationPermission()) scanLocal();
         else if (requestCode == 412) status.setText("Allow location permission to scan Wi-Fi networks on this Android version.");
+        if (requestCode == 413 && hasLocationPermission()) {
+            if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 414);
+            } else startBackgroundService();
+        } else if (requestCode == 414) {
+            if (Build.VERSION.SDK_INT < 29 || checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                startBackgroundService();
+            } else Toast.makeText(this, "Background location was not allowed. Discovery may be limited.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void enableBackgroundDiscovery() {
+        if (!hasLocationPermission()) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 413);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 414);
+            return;
+        }
+        startBackgroundService();
+    }
+
+    private void startBackgroundService() {
+        try {
+            Intent intent = new Intent(this, LocationDiscoveryService.class);
+            intent.setAction(LocationDiscoveryService.ACTION_START);
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
+            Toast.makeText(this, "Background discovery requested. Android may limit updates for battery and privacy.", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not start background discovery: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void updateNetworkStatus() {

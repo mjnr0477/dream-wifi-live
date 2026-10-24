@@ -71,7 +71,9 @@ jobs:
           test -s "$AAB"
           # Fail closed: never publish an unsigned or unverifiable release artifact.
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          jarsigner -verify -strict -certs "$AAB"
+          # Android release keystores normally use self-signed certificates; strict mode rejects those even when the AAB is correctly signed.
+          jarsigner -verify -certs "$AAB"
+          keytool -printcert -jarfile "$AAB" | grep -q "SHA256:"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.mjnr0477.dreamwifi' versionCode='1' versionName='0.1.0'"
           # Ensure the APK and AAB use the same release certificate.
           APK_CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"

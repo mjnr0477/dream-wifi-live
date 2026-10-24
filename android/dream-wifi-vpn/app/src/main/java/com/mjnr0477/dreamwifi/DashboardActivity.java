@@ -8,6 +8,10 @@ import android.webkit.WebChromeClient;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
+import android.net.wifi.ScanResult;
+import android.location.LocationManager;
+import android.provider.Settings;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -22,7 +26,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public final class DashboardActivity extends Activity {
-    private static final String DASHBOARD_URL = "https://dream-wifi-live.onrender.com/";
+    private static final String DASHBOARD_URL = "https://dream-wifi-live.onrender.com/discovery.html";
     private static final String DASHBOARD_HOST = "dream-wifi-live.onrender.com";
     private WebView webView;
     private ProgressBar progressBar;
@@ -124,6 +128,45 @@ public final class DashboardActivity extends Activity {
 
     /** Exposes only the short-lived pairing code, never the source credential/token. */
     private final class PairingCodeBridge {
+        @JavascriptInterface
+        public String requestLocalWifiScan() {
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> requestPermissions(new String[] { Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION }, LOCATION_PERMISSION_REQUEST));
+                return "{\"status\":\"permission_required\",\"networks\":[]}";
+            }
+            try {
+                LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+                if (android.os.Build.VERSION.SDK_INT >= 28 && lm != null && !lm.isLocationEnabled()) return "{\"status\":\"location_services_off\",\"networks\":[]}";
+                WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                if (wifi == null || !wifi.isWifiEnabled()) return "{\"status\":\"wifi_off\",\"networks\":[],\"message\":\"Turn on Wi-Fi and retry.\"}";
+                boolean started = wifi.startScan();
+                java.util.List<ScanResult> scans = wifi.getScanResults();
+                org.json.JSONArray networks = new org.json.JSONArray();
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (ScanResult scan : scans) {
+                    if (scan == null) continue;
+                    String ssid = scan.SSID == null ? "" : scan.SSID;
+                    if (!seen.add(ssid + "|" + scan.BSSID)) continue;
+                    org.json.JSONObject item = new org.json.JSONObject();
+                    item.put("ssid", ssid); item.put("level_dbm", scan.level);
+                    String caps = scan.capabilities == null ? "" : scan.capabilities;
+                    item.put("capabilities", caps);
+                    item.put("security", caps.contains("PSK") || caps.contains("SAE") || caps.contains("EAP") || caps.contains("WEP") ? "Secured" : "Open or unknown — verify");
+                    networks.put(item);
+                }
+                org.json.JSONObject result = new org.json.JSONObject();
+                result.put("status", "ok"); result.put("networks", networks); result.put("scan_started", started);
+                result.put("note", started ? "Android may return cached results. Scan again in a few seconds for refreshed results." : "Android may have throttled the scan; these are the available results.");
+                return result.toString();
+            } catch (SecurityException error) { return "{\"status\":\"permission_required\",\"networks\":[]}";
+            } catch (Exception error) { return "{\"status\":\"error\",\"networks\":[],\"message\":\"Wi-Fi scan failed. Check Wi-Fi and Location settings.\"}"; }
+        }
+
+        @JavascriptInterface
+        public void openWifiSettings() {
+            runOnUiThread(() -> { try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); } catch (Exception error) { Toast.makeText(DashboardActivity.this, "Open Android Wi-Fi settings.", Toast.LENGTH_SHORT).show(); } });
+        }
         @JavascriptInterface
         public String getSourcePairingCode() {
             android.content.SharedPreferences prefs = getSharedPreferences(

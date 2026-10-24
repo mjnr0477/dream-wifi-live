@@ -34,6 +34,7 @@ public final class LocationDiscoveryService extends Service {
     private static final String CHANNEL_ID = "dream_wifi_location_discovery";
     private static final int NOTIFICATION_ID = 7202;
     private static final long MIN_REFRESH_MS = 15L * 60L * 1000L;
+    private static final long MIN_MOVEMENT_REFRESH_MS = 5L * 60L * 1000L;
     private static final float MIN_MOVEMENT_METERS = 2000f;
 
     private LocationManager locationManager;
@@ -61,8 +62,10 @@ public final class LocationDiscoveryService extends Service {
 
         startForeground(NOTIFICATION_ID, notification("Starting automatic discovery…"));
         if (!isConfigured()) {
-            updateNotification("Development build: configure a separate discovery backend.");
-            return START_STICKY;
+            updateNotification("Tracking paused: configure a separate development backend to enable mapping.");
+            stopForeground(true);
+            stopSelf();
+            return START_NOT_STICKY;
         }
         if (!hasLocationPermission()) {
             updateNotification("Allow location access to start automatic discovery.");
@@ -109,7 +112,7 @@ public final class LocationDiscoveryService extends Service {
 
                 long now = System.currentTimeMillis();
                 boolean moved = previous == null || previous.distanceTo(location) >= MIN_MOVEMENT_METERS;
-                if (lastQueryAt == 0L || now - lastQueryAt >= MIN_REFRESH_MS || moved) {
+                if (lastQueryAt == 0L || now - lastQueryAt >= MIN_REFRESH_MS || (moved && now - lastQueryAt >= MIN_MOVEMENT_REFRESH_MS)) {
                     lastQueryAt = now;
                     queryDiscovery(location);
                 } else {

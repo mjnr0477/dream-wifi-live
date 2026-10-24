@@ -163,7 +163,7 @@
     { enableHighAccuracy:false, maximumAge:120000, timeout:20000 });
   }
 
-  $("scan-local").addEventListener("click", () => {
+  $("scan-local").addEventListener("click", async () => {
     const native = window.DreamWifiNative;
     if (!native || typeof native.requestLocalWifiScan !== "function") {
       $("local-results").innerHTML = '<p class="warning">Physical Wi-Fi scanning is available in the Android app. On a browser, use your device Wi-Fi settings to scan nearby networks.</p>';

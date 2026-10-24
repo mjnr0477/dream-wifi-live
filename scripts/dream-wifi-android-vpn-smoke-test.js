@@ -78,9 +78,9 @@ assert.match(service, /DreamWifiCredentialStore\.saveReceiver/);
 assert.match(service, /DreamWifiCredentialStore\.clearReceiver/);
 assert.match(service, /restoreStartIntent/);
 assert.match(service, /registerWifiNetworkCallback/);
-assert.match(service, /if \(capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)\) \{\\s*return true;\\s*\}/,
+assert.match(service, /if \(capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)\) \{\s*return true;\s*\}/,
   "An authorized Wi-Fi source must remain selectable while Android marks its portal as unvalidated.");
-assert.match(service, /return capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_CELLULAR\)\\s*&& capabilities\.hasCapability\(NetworkCapabilities\.NET_CAPABILITY_VALIDATED\);/,
+assert.match(service, /return capabilities\.hasTransport\(NetworkCapabilities\.TRANSPORT_CELLULAR\)\s*&& capabilities\.hasCapability\(NetworkCapabilities\.NET_CAPABILITY_VALIDATED\);/,
   "Cellular source fallback must still require a validated network.");
 assert.match(service, /maybeReconnectSourceOnNetwork/);
 assert.match(service, /NET_CAPABILITY_VALIDATED/);

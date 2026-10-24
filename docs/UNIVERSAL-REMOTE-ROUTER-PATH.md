@@ -39,7 +39,7 @@ A code build or CI pass is not end-to-end proof. Release is blocked until all of
 
 ## Current status
 
-The repository has a WebSocket relay, source enrollment/pairing, Android source and receiver modes, and an HTTPS acceptance script. The end-to-end acceptance script has not yet been demonstrated against a real remote gateway and physical receiver. Do not publish or merge to production on the basis of unit tests alone.
+The repository has a WebSocket relay, source enrollment/pairing, Android source and receiver modes, and an acceptance script that checks two separate TLS/HTTPS streams: example.com response content and the public egress IP returned by api.ipify.org through the source. GitHub Actions verification and Android APK build pass for the latest checked acceptance-test commit. However, the end-to-end acceptance script has not yet been demonstrated against a real remote gateway and physical receiver. CI is not proof of remote internet delivery. Do not publish or merge to production until the physical receiver VPN test passes.
 
 ## Manual end-to-end test
 
@@ -51,4 +51,4 @@ DREAM_WIFI_PAIRING_CODE='PASTE_FRESH_CODE_LOCALLY' \
 npm run dream-wifi:acceptance:https
 ```
 
-The code is one-time use. Never publish it or send it in chat. This script proves a relayed HTTPS request at the protocol level; it does not replace physical Android VPN browsing tests.
+The code is one-time use. Never publish it or send it in chat. The script must print `REMOTE ROUTER HTTPS + EGRESS ACCEPTANCE: PASSED` to count as protocol-level acceptance. It proves the relay can return HTTPS content and an egress IP via the registered source; it does not replace physical Android VPN browsing, DNS, screen-off, network-switch, throughput, or distance tests.

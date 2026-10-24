@@ -3,6 +3,7 @@ package com.mjnr0477.dreamwifi;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -17,8 +18,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public final class DashboardActivity extends Activity {
-    private static final String DASHBOARD_URL = "https://dream-wifi-live.onrender.com/";
-    private static final String DASHBOARD_HOST = "dream-wifi-live.onrender.com";
+    private String dashboardUrl;
+    private String dashboardHost;
     private WebView webView;
     private ProgressBar progressBar;
 
@@ -83,19 +84,40 @@ public final class DashboardActivity extends Activity {
         });
         root.addView(webView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
-
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState);
+        String configuredBaseUrl = String.valueOf(BuildConfig.DREAM_WIFI_BASE_URL).trim();
+        Uri configuredUri = Uri.parse(configuredBaseUrl);
+        if ("https".equalsIgnoreCase(configuredUri.getScheme())
+                && configuredUri.getHost() != null
+                && !configuredUri.getHost().trim().isEmpty()) {
+            dashboardHost = configuredUri.getHost();
+            dashboardUrl = configuredBaseUrl.endsWith("/") ? configuredBaseUrl : configuredBaseUrl + "/";
         }
-        if (webView.getUrl() == null) {
-            webView.loadUrl(DASHBOARD_URL);
+
+        setContentView(root);
+        if (dashboardUrl == null) {
+            progressBar.setVisibility(View.GONE);
+            webView.setVisibility(View.GONE);
+            TextView setupNotice = new TextView(this);
+            setupNotice.setText("Development workspace\\n\\nThis build is intentionally not connected to the published Dream Wi-Fi service. Configure DREAM_WIFI_BASE_URL to a separate development backend, then rebuild to enable source discovery and pairing here.");
+            setupNotice.setTextColor(Color.parseColor("#D9E7FA"));
+            setupNotice.setTextSize(16);
+            setupNotice.setLineSpacing(8, 1.0f);
+            setupNotice.setPadding(24, 32, 24, 24);
+            root.addView(setupNotice, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        } else {
+            if (savedInstanceState != null) {
+                webView.restoreState(savedInstanceState);
+            }
+            if (webView.getUrl() == null) {
+                webView.loadUrl(dashboardUrl);
+            }
         }
     }
 
     private boolean routeUrl(Uri uri) {
-        if ("https".equalsIgnoreCase(uri.getScheme())
-                && DASHBOARD_HOST.equalsIgnoreCase(uri.getHost())) {
+        if (dashboardHost != null && "https".equalsIgnoreCase(uri.getScheme())
+                && dashboardHost.equalsIgnoreCase(uri.getHost())) {
             return false;
         }
         try {

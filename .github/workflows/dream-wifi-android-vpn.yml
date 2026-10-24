@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - idea/500km-one-app-development
     paths:
       - "android/dream-wifi-vpn/**"
       - ".github/workflows/dream-wifi-android-vpn.yml"
@@ -17,6 +18,19 @@ permissions:
   contents: read
 
 jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run backend and discovery integration tests
+        run: npm test
+
   android-debug:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -45,11 +59,11 @@ jobs:
           gradle-version: "8.9"
       - name: Build debug APK
         working-directory: android/dream-wifi-vpn
-        run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}" :app:assembleDebug
+        run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="${{ vars.DREAM_WIFI_DEV_BASE_URL || '' }}" :app:assembleDebug
       - name: Validate signed release APK/AAB with an ephemeral CI-only key
         working-directory: android/dream-wifi-vpn
         env:
-          DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}
+          DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_DEV_BASE_URL || '' }}
         run: |
           set -euo pipefail
           keystore="$RUNNER_TEMP/dream-wifi-ci-only.jks"

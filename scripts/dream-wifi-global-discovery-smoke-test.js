@@ -33,6 +33,8 @@ assert.match(activity, /public String suggestOpenWifi\(String ssid\)/);
 assert.match(js, /Connect to open Wi-Fi/);
 assert.match(activity, /Settings\.ACTION_WIFI_SETTINGS/);
 assert.match(manifest, /ACCESS_FINE_LOCATION/);
+assert.match(manifest, /ACCESS_BACKGROUND_LOCATION/);
+assert.match(manifest, /FOREGROUND_SERVICE_LOCATION/);
 assert.match(manifest, /ACCESS_WIFI_STATE/);
 assert.match(manifest, /CHANGE_WIFI_STATE/);
 console.log("Dream Wi-Fi global/local discovery smoke test passed.");

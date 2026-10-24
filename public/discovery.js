@@ -36,12 +36,16 @@
   }
   function renderSources(data) {
     $("sources-results").replaceChildren();
-    $("sources-summary").textContent = data.count + " registered source(s) found · " + data.online_count + " relay connected · " + data.radius_km + " km search radius";
+    $("sources-summary").textContent = data.count + " registered source(s) found · " + data.online_count + " relay connected · " + data.radius_km + " km search radius · internet-ready sources prioritized; speed is not measured yet";
     if (!data.sources.length) {
       $("sources-results").innerHTML = '<p class="muted">No registered source with known coordinates was found in this search. This does not mean there are no ordinary Wi-Fi networks in the area.</p>';
       return;
     }
-    for (const source of data.sources) {
+    const rankedSources = [...data.sources].sort((a, b) => {
+      const priority = source => source.connected && source.internet_ready === true ? 0 : source.connected ? 1 : 2;
+      return priority(a) - priority(b) || Number(a.distance_km) - Number(b.distance_km);
+    });
+    for (const source of rankedSources) {
       const item = document.createElement("article"); item.className = "tile";
       const state = source.connected ? "Relay online" : "Offline";
       const internet = source.internet_ready === true ? "Source internet probe passed" : source.internet_ready === false ? "Source internet probe failed" : "Internet not verified";

@@ -15,6 +15,11 @@ import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.view.View;
 import android.text.InputType;
 import android.view.Gravity;
 import android.widget.Button;
@@ -43,6 +48,17 @@ public final class MainActivity extends Activity {
     private Button sourceButton;
     private TextView status;
     private TextView networkInfo;
+    private LinearLayout pairingCard;
+    private TextView pairingCodeDisplay;
+    private TextView pairingExpiryDisplay;
+    private Button copyPairingCodeButton;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pairingCodeRefresh = new Runnable() {
+        @Override public void run() {
+            refreshPairingCodeCard();
+            if (pairingCard != null && pairingCard.getVisibility() == View.VISIBLE) uiHandler.postDelayed(this, 1000L);
+        }
+    };
     private String[] availableSourceIds = new String[0];
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
@@ -83,11 +99,12 @@ public final class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
         box.setPadding(24, 30, 24, 24);
-        box.setBackgroundColor(android.graphics.Color.rgb(246, 248, 252));
+        box.setBackgroundColor(android.graphics.Color.rgb(244, 247, 253));
 
         TextView title = new TextView(this);
         title.setText("Dream Wi-Fi");
-        title.setTextSize(30);
+        title.setTextSize(32);
+        title.setPadding(0, 8, 0, 4);
         title.setTextColor(android.graphics.Color.rgb(20, 48, 100));
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
@@ -115,7 +132,58 @@ public final class MainActivity extends Activity {
         Button shareButton = new Button(this);
         shareButton.setText("Share internet");
         shareButton.setOnClickListener(v -> enrollAndStartSource());
+        shareButton.setTextColor(android.graphics.Color.WHITE);
+        shareButton.setBackground(rounded(android.graphics.Color.rgb(21, 94, 239), 18));
         box.addView(shareButton, fullWidthButton());
+
+        pairingCard = new LinearLayout(this);
+        pairingCard.setOrientation(LinearLayout.VERTICAL);
+        pairingCard.setPadding(20, 18, 20, 18);
+        pairingCard.setBackground(rounded(android.graphics.Color.WHITE, 20));
+        pairingCard.setElevation(5f);
+        pairingCard.setVisibility(View.GONE);
+        TextView pairingHeading = new TextView(this);
+        pairingHeading.setText("Your sharing code");
+        pairingHeading.setTextSize(19);
+        pairingHeading.setTypeface(null, android.graphics.Typeface.BOLD);
+        pairingHeading.setTextColor(android.graphics.Color.rgb(20, 48, 100));
+        pairingCard.addView(pairingHeading);
+        TextView pairingHint = new TextView(this);
+        pairingHint.setText("Give this one-time code only to the person you want to connect, even over a long distance.");
+        pairingHint.setTextSize(13);
+        pairingHint.setTextColor(android.graphics.Color.rgb(91, 105, 128));
+        pairingHint.setPadding(0, 6, 0, 12);
+        pairingCard.addView(pairingHint);
+        pairingCodeDisplay = new TextView(this);
+        pairingCodeDisplay.setText("Waiting for source…");
+        pairingCodeDisplay.setTextSize(27);
+        pairingCodeDisplay.setGravity(Gravity.CENTER);
+        pairingCodeDisplay.setTypeface(null, android.graphics.Typeface.BOLD);
+        pairingCodeDisplay.setTextColor(android.graphics.Color.rgb(21, 94, 239));
+        pairingCodeDisplay.setPadding(8, 18, 8, 18);
+        pairingCodeDisplay.setBackground(rounded(android.graphics.Color.rgb(237, 243, 255), 14));
+        pairingCard.addView(pairingCodeDisplay);
+        pairingExpiryDisplay = new TextView(this);
+        pairingExpiryDisplay.setText("The code appears when the source relay is online.");
+        pairingExpiryDisplay.setTextSize(12);
+        pairingExpiryDisplay.setTextColor(android.graphics.Color.rgb(91, 105, 128));
+        pairingExpiryDisplay.setPadding(0, 10, 0, 8);
+        pairingCard.addView(pairingExpiryDisplay);
+        copyPairingCodeButton = new Button(this);
+        copyPairingCodeButton.setText("Copy sharing code");
+        copyPairingCodeButton.setEnabled(false);
+        copyPairingCodeButton.setOnClickListener(v -> {
+            String code = pairingCodeDisplay != null && pairingCodeDisplay.getTag() instanceof String
+                    ? (String) pairingCodeDisplay.getTag() : "";
+            if (code.isEmpty()) { status.setText("The sharing code is not ready yet."); return; }
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("Dream Wi-Fi sharing code", code));
+                status.setText("Sharing code copied. Send it only to your chosen receiver.");
+            }
+        });
+        pairingCard.addView(copyPairingCodeButton, fullWidthButton());
+        box.addView(pairingCard, fullWidthButton());
 
         TextView explanation = new TextView(this);
         explanation.setText("Choose one action to get started. You can find Wi-Fi locations, connect using a source owner's one-time code, or share a Wi-Fi connection you are authorized to use.");
@@ -159,6 +227,42 @@ public final class MainActivity extends Activity {
             selectedSourceId = savedReceiver.sourceId;
             status.setText("A saved receiver connection is available. Tap Receive internet to resume.");
         }
+    }
+
+    private android.graphics.drawable.GradientDrawable rounded(int color, int radiusDp) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radiusDp * getResources().getDisplayMetrics().density);
+        return d;
+    }
+
+    private void refreshPairingCodeCard() {
+        if (pairingCodeDisplay == null || pairingExpiryDisplay == null) return;
+        android.content.SharedPreferences prefs = getSharedPreferences(DreamVpnService.PAIRING_CODE_PREFS, MODE_PRIVATE);
+        String code = prefs.getString(DreamVpnService.KEY_PAIRING_CODE, "");
+        long expiresAt = prefs.getLong(DreamVpnService.KEY_PAIRING_CODE_EXPIRES_AT, 0L);
+        if (code == null || !code.matches("[A-F0-9]{12}") || expiresAt <= System.currentTimeMillis()) {
+            pairingCodeDisplay.setTag("");
+            pairingCodeDisplay.setText("Waiting for source…");
+            pairingExpiryDisplay.setText(expiresAt > 0L
+                    ? "This code expired. Restart sharing to request a fresh source session."
+                    : "Keep this phone connected. The code appears when the secure relay comes online.");
+            if (copyPairingCodeButton != null) copyPairingCodeButton.setEnabled(false);
+            return;
+        }
+        pairingCodeDisplay.setTag(code);
+        pairingCodeDisplay.setText(code.replaceAll("(.{4})(?=.)", "$1 "));
+        long seconds = Math.max(0L, (expiresAt - System.currentTimeMillis() + 999L) / 1000L);
+        pairingExpiryDisplay.setText("One-time code · expires in " + (seconds / 60L) + "m " + (seconds % 60L) + "s.");
+        if (copyPairingCodeButton != null) copyPairingCodeButton.setEnabled(true);
+    }
+
+    private void showPairingCodeCard() {
+        if (pairingCard == null) return;
+        pairingCard.setVisibility(View.VISIBLE);
+        refreshPairingCodeCard();
+        uiHandler.removeCallbacks(pairingCodeRefresh);
+        uiHandler.post(pairingCodeRefresh);
     }
 
     private LinearLayout.LayoutParams fullWidthButton() {
@@ -468,7 +572,8 @@ public final class MainActivity extends Activity {
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_ONLY, true);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);
-        status.setText("Publishing this phone's connected Wi-Fi as a remote Dream Wi-Fi source. Keep this phone powered and connected.");
+        status.setText("Starting secure internet sharing. Keep this phone connected to Wi-Fi.");
+        showPairingCodeCard();
     }
 
     private void startVpnService() {
@@ -514,6 +619,12 @@ public final class MainActivity extends Activity {
             networkReceiverRegistered = true;
         }
         refreshNetworkInfo();
+    }
+
+    @Override protected void onDestroy() {
+        uiHandler.removeCallbacks(pairingCodeRefresh);
+        authWorker.shutdownNow();
+        super.onDestroy();
     }
 
     @Override protected void onPause() {

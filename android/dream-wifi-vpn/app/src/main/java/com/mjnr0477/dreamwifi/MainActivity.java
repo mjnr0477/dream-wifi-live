@@ -78,102 +78,147 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(28, 32, 28, 24);
+        box.setPadding(24, 30, 24, 24);
+        box.setBackgroundColor(android.graphics.Color.rgb(246, 248, 252));
 
         TextView title = new TextView(this);
         title.setText("Dream Wi-Fi");
-        title.setTextSize(28);
+        title.setTextSize(30);
+        title.setTextColor(android.graphics.Color.rgb(20, 48, 100));
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
-        box.addView(title);
+        box.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
-        Button dashboardButton = new Button(this);
-        dashboardButton.setText("Open Dream Wi-Fi dashboard");
-        dashboardButton.setOnClickListener(v ->
+        TextView intro = new TextView(this);
+        intro.setText("What would you like to do?");
+        intro.setTextSize(17);
+        intro.setGravity(Gravity.CENTER);
+        intro.setTextColor(android.graphics.Color.rgb(80, 94, 118));
+        intro.setPadding(0, 10, 0, 24);
+        box.addView(intro, new LinearLayout.LayoutParams(-1, -2));
+
+        Button findButton = new Button(this);
+        findButton.setText("Find Wi-Fi nearby");
+        findButton.setOnClickListener(v ->
                 startActivity(new Intent(this, DashboardActivity.class)));
-        box.addView(dashboardButton);
+        box.addView(findButton, fullWidthButton());
 
-        TextView note = new TextView(this);
-        note.setText("Standalone Dream Wi-Fi: enter the one-time pairing code supplied by the source owner to connect this phone through that source. Source publishing uses a separate enrollment step. Any provider captive portal or package/payment login must still be completed normally.");
-        note.setTextSize(15);
-        note.setPadding(0, 18, 0, 18);
-        box.addView(note);
+        Button receiveButton = new Button(this);
+        receiveButton.setText("Receive internet");
+        receiveButton.setOnClickListener(v -> showReceiveDialog());
+        box.addView(receiveButton, fullWidthButton());
+
+        Button shareButton = new Button(this);
+        shareButton.setText("Share internet");
+        shareButton.setOnClickListener(v -> enrollAndStartSource());
+        box.addView(shareButton, fullWidthButton());
+
+        TextView explanation = new TextView(this);
+        explanation.setText("Choose one action to get started. You can find Wi-Fi locations, connect using a source owner's one-time code, or share a Wi-Fi connection you are authorized to use.");
+        explanation.setTextSize(14);
+        explanation.setTextColor(android.graphics.Color.rgb(85, 98, 120));
+        explanation.setGravity(Gravity.CENTER);
+        explanation.setPadding(4, 16, 4, 18);
+        box.addView(explanation, new LinearLayout.LayoutParams(-1, -2));
+
+        Button moreButton = new Button(this);
+        moreButton.setText("Connection settings");
+        moreButton.setOnClickListener(v -> showConnectionSettings());
+        box.addView(moreButton, fullWidthButton());
 
         pairingCodeInput = new EditText(this);
         pairingCodeInput.setSingleLine(true);
         pairingCodeInput.setHint("One-time source pairing code");
         pairingCodeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        box.addView(pairingCodeInput, new LinearLayout.LayoutParams(-1, -2));
 
         connectButton = new Button(this);
-        connectButton.setText("Pair and connect VPN");
-        connectButton.setOnClickListener(v -> connectWithPairingCode());
-        box.addView(connectButton);
-
-        Button publishSourceButton = new Button(this);
-        publishSourceButton.setText("Publish this Wi-Fi as a remote source");
-        publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
-        box.addView(publishSourceButton);
-
-        Button revokePairingsButton = new Button(this);
-        revokePairingsButton.setText("Revoke all receiver pairings");
-        revokePairingsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, DreamVpnService.class);
-            intent.setAction(DreamVpnService.ACTION_REVOKE_PAIRINGS);
-            startService(intent);
-            status.setText("Requested receiver pairing revocation. Source sharing must be running for this to take effect.");
-        });
-        box.addView(revokePairingsButton);
-
+        connectButton.setText("Connect");
         sourceButton = new Button(this);
         sourceButton.setText("Choose Wi-Fi source (automatic)");
-        sourceButton.setOnClickListener(v -> showSourcePicker());
-        box.addView(sourceButton);
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         networkInfo = new TextView(this);
-        networkInfo.setTextSize(13);
-        networkInfo.setPadding(0, 12, 0, 12);
-        box.addView(networkInfo);
-
-        Button portalButton = new Button(this);
-        portalButton.setText("Open Quant Wi-Fi portal");
-        portalButton.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("http://quant.com/status")));
-            } catch (Exception error) {
-                status.setText("Could not open the Quant portal. Connect to Quant Wi-Fi and visit quant.com/status.");
-            }
-        });
-        box.addView(portalButton);
-
-        Button disconnect = new Button(this);
-        disconnect.setText("Disconnect Dream VPN");
-        disconnect.setOnClickListener(v -> {
-            Intent intent = new Intent(this, DreamVpnService.class);
-            intent.setAction(DreamVpnService.ACTION_STOP);
-            startService(intent);
-            status.setText("Disconnect requested.");
-        });
-        box.addView(disconnect);
-
         status = new TextView(this);
-        status.setText("Ready. Complete Quant's package/login flow before testing internet.");
-        status.setTextSize(14);
-        status.setPadding(0, 16, 0, 0);
-        box.addView(status);
+        status.setText("Ready. Choose an action above.");
+        status.setTextSize(13);
+        status.setTextColor(android.graphics.Color.rgb(64, 78, 100));
+        status.setPadding(0, 12, 0, 0);
+        box.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
         setContentView(box);
         refreshNetworkInfo();
+
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
             pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
-            sourceButton.setText(selectedSourceLabel());
-            status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");
+            status.setText("A saved receiver connection is available. Tap Receive internet to resume.");
         }
+    }
+
+    private LinearLayout.LayoutParams fullWidthButton() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 6, 0, 6);
+        return params;
+    }
+
+    private void showReceiveDialog() {
+        EditText codeInput = new EditText(this);
+        codeInput.setSingleLine(true);
+        codeInput.setHint("Enter the source owner's code");
+        codeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
+        if (savedReceiver != null) codeInput.setHint("Leave blank to resume saved connection");
+        LinearLayout content = new LinearLayout(this);
+        content.setPadding(22, 8, 22, 0);
+        content.addView(codeInput, new LinearLayout.LayoutParams(-1, -2));
+        new AlertDialog.Builder(this)
+                .setTitle("Receive internet")
+                .setMessage("Enter the one-time code shared by the source owner.")
+                .setView(content)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Connect", (dialog, which) -> {
+                    pairingCodeInput.setText(codeInput.getText().toString().trim());
+                    connectWithPairingCode();
+                })
+                .show();
+    }
+
+    private void showConnectionSettings() {
+        String[] choices = {
+                "Choose available source",
+                "Open Wi-Fi dashboard",
+                "Open Quant Wi-Fi portal",
+                "Disconnect Dream Wi-Fi"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Connection settings")
+                .setItems(choices, (dialog, which) -> {
+                    if (which == 0) {
+                        showSourcePicker();
+                    } else if (which == 1) {
+                        startActivity(new Intent(this, DashboardActivity.class));
+                    } else if (which == 2) {
+                        try {
+                            startActivity(new Intent(Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("http://quant.com/status")));
+                        } catch (Exception error) {
+                            status.setText("Could not open the Quant portal.");
+                        }
+                    } else {
+                        Intent intent = new Intent(this, DreamVpnService.class);
+                        intent.setAction(DreamVpnService.ACTION_STOP);
+                        startService(intent);
+                        status.setText("Disconnect requested.");
+                    }
+                })
+                .show();
     }
 
     private void connectWithPairingCode() {

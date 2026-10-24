@@ -2,6 +2,10 @@ package com.mjnr0477.dreamwifi;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -49,6 +53,9 @@ public final class RouterDiscoveryActivity extends Activity {
     private WifiManager wifi;
     private int localCount;
     private int mapCount;
+    private final Handler scanHandler = new Handler(Looper.getMainLooper());
+    private BroadcastReceiver scanReceiver;
+    private Runnable scanTimeout;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -173,20 +180,58 @@ starts here.", 29, 0xffffffff, true);
         mapCount = 0;
         if (wifi == null || !wifi.isWifiEnabled()) {
             addInfoCard("Turn on Wi-Fi", "Switch on Wi-Fi in Android settings, then tap Scan again.", "OPEN WI-FI SETTINGS", () -> startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)));
-        } else {
-            try { wifi.startScan(); } catch (SecurityException ignored) {}
-            List<ScanResult> found = Collections.emptyList();
-            try { found = wifi.getScanResults(); } catch (SecurityException ignored) {}
-            if (found == null) found = Collections.emptyList();
-            Collections.sort(found, (a, b) -> Integer.compare(b.level, a.level));
-            for (ScanResult network : found) {
-                if (network == null) continue;
-                String ssid = network.SSID == null || network.SSID.trim().isEmpty() ? "(Hidden Wi-Fi network)" : network.SSID.trim();
-                addLocalNetwork(ssid, network.level, network.capabilities == null ? "" : network.capabilities);
-            }
-            if (found.isEmpty()) addInfoCard("No radio results yet", "Android may limit scan frequency. Wait a few seconds and scan again; check Wi-Fi and Location are on.", null, null);
+            localCount = 1;
+            loadMappedPlaces();
+            return;
         }
-        localCount = results.getChildCount();
+
+        // Android scans asynchronously. Wait for its broadcast instead of displaying stale results.
+        scanReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) {
+                if (!WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(intent.getAction())) return;
+                finishPhysicalScan();
+            }
+        };
+        IntentFilter filter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(scanReceiver, filter, Context.RECEIVER_EXPORTED);
+            else registerReceiver(scanReceiver, filter);
+        } catch (Exception e) {
+            scanReceiver = null;
+        }
+        scanTimeout = this::finishPhysicalScan;
+        scanHandler.postDelayed(scanTimeout, 7000L);
+        boolean started = false;
+        try { started = wifi.startScan(); } catch (SecurityException ignored) {}
+        if (!started) {
+            // Android can rate-limit scans. The timeout path will show the latest available results.
+            status.setText("Android limited a fresh scan. Checking the latest results…");
+        }
+    }
+
+    private void finishPhysicalScan() {
+        if (scanTimeout != null) scanHandler.removeCallbacks(scanTimeout);
+        scanTimeout = null;
+        if (scanReceiver != null) {
+            try { unregisterReceiver(scanReceiver); } catch (Exception ignored) {}
+            scanReceiver = null;
+        }
+        List<ScanResult> found = Collections.emptyList();
+        try { found = wifi == null ? Collections.emptyList() : wifi.getScanResults(); } catch (SecurityException ignored) {}
+        if (found == null) found = Collections.emptyList();
+        Collections.sort(found, (a, b) -> Integer.compare(b.level, a.level));
+        for (ScanResult network : found) {
+            if (network == null) continue;
+            String ssid = network.SSID == null || network.SSID.trim().isEmpty() ? "(Hidden Wi-Fi network)" : network.SSID.trim();
+            addLocalNetwork(ssid, network.level, network.capabilities == null ? "" : network.capabilities);
+            localCount++;
+        }
+        if (found.isEmpty()) {
+            addSectionHeader("Nearby Wi-Fi signals");
+            addInfoCard("No scan results available", "Android may rate-limit scans or hide results until permissions and Location are enabled. Wait a few seconds and tap Scan again.", null, null);
+        } else {
+            addSectionHeader("Nearby Wi-Fi signals · strongest first");
+        }
         loadMappedPlaces();
     }
 

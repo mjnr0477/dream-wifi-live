@@ -19,6 +19,7 @@ let durableStorageReady = !supabaseStore.hasAnyConfig && process.env.DREAM_WIFI_
 const registryFile = path.join(dataDir, "sources.json");
 const sourceCredentialsFile = path.join(dataDir, "source-credentials.json");
 const { fetchPublicHotspots } = require("./product/dream_wifi_public_hotspots");
+const { compareSourceCandidates } = require("./product/dream_wifi_source_ranking");
 let knownSources = new Map();
 const sourceEnrollmentAttempts = new Map();
 let enrolledSourceCredentials = [];
@@ -141,7 +142,7 @@ app.get("/api/wifi/sources", async (req, res) => {
       distance_km: Math.round(distanceKm(latitude, longitude, source.latitude, source.longitude) * 10) / 10
     };
   }).filter(source => source.distance_km <= radiusKm)
-    .sort((a, b) => a.distance_km - b.distance_km).slice(0, 200);
+    .sort(compareSourceCandidates).slice(0, 200);
   res.json({
     success: true,
     radius_km: radiusKm,

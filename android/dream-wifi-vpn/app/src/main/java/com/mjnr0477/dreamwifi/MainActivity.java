@@ -67,6 +67,8 @@ public final class MainActivity extends Activity {
     private String[] availableSourceIds = new String[0];
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
+    private String requestedSourceId = "";
+    private String requestedSourceName = "";
     private String pendingPairingCode;
     private String pendingSourceToken;
     private String pendingAccessToken;
@@ -250,6 +252,8 @@ public final class MainActivity extends Activity {
 
         ensureAutomaticDiscovery();
 
+        requestedSourceId = String.valueOf(getIntent().getStringExtra("selected_source_id") == null ? "" : getIntent().getStringExtra("selected_source_id")).trim();
+        requestedSourceName = String.valueOf(getIntent().getStringExtra("selected_source_name") == null ? "" : getIntent().getStringExtra("selected_source_name")).trim();
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
@@ -257,6 +261,7 @@ public final class MainActivity extends Activity {
             selectedSourceId = savedReceiver.sourceId;
             status.setText("A saved receiver connection is available. Tap Receive internet to resume.");
         }
+        if (!requestedSourceId.isEmpty()) selectedSourceId = requestedSourceId;
         if (getIntent().getBooleanExtra("open_receive_dialog", false)) {
             getIntent().removeExtra("open_receive_dialog");
             uiHandler.post(this::showReceiveDialog);
@@ -365,17 +370,26 @@ public final class MainActivity extends Activity {
         codeInput.setHint("Enter the source owner's code");
         codeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
-        if (savedReceiver != null) codeInput.setHint("Leave blank to resume saved connection");
+        if (!requestedSourceId.isEmpty()) {
+            codeInput.setHint("Enter code for " + (requestedSourceName.isEmpty() ? "selected gateway" : requestedSourceName));
+        } else if (savedReceiver != null) codeInput.setHint("Leave blank to resume saved connection");
         LinearLayout content = new LinearLayout(this);
         content.setPadding(22, 8, 22, 0);
         content.addView(codeInput, new LinearLayout.LayoutParams(-1, -2));
         new AlertDialog.Builder(this)
-                .setTitle("Receive internet")
-                .setMessage("Enter the one-time code shared by the source owner.")
+                 .setTitle(requestedSourceId.isEmpty() ? "Receive internet" : "Connect to " + (requestedSourceName.isEmpty() ? "remote gateway" : requestedSourceName))
+                .setMessage(requestedSourceId.isEmpty()
+                        ? "Enter the one-time code shared by the source owner."
+                        : "This selects the registered gateway. Enter the code provided by its owner to authorize the tunnel.")
                 .setView(content)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Connect", (dialog, which) -> {
-                    pairingCodeInput.setText(codeInput.getText().toString().trim());
+                    String enteredCode = codeInput.getText().toString().trim();
+                    if (!requestedSourceId.isEmpty() && enteredCode.isEmpty()) {
+                        status.setText("A code from the selected gateway owner is required. The gateway ID alone is not authorization.");
+                        return;
+                    }
+                    pairingCodeInput.setText(enteredCode);
                     connectWithPairingCode();
                 })
                 .show();

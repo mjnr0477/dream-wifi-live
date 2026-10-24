@@ -109,7 +109,7 @@ const dreamWifiTunnel = require("./product/dream_wifi_tunnel_engine").attachDrea
 app.get("/api/wifi/sources", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);
   const longitude = coordinate(req.query.longitude, -180, 180);
-  const radiusKm = Number(req.query.radius_km || 300);
+  const radiusKm = Number(req.query.radius_km || 500);
   if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search participating sources." });
   // Earth circumference is about 40,075 km; half-circumference covers every possible great-circle distance.
   if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 20040) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 20040." });
@@ -159,7 +159,7 @@ app.get("/api/wifi/hotspots", async (req, res) => {
   const longitude = coordinate(req.query.longitude, -180, 180);
   const radiusKm = Number(req.query.radius_km || 300);
   if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search public hotspots." });
-  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 300." });
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 500) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 500." });
   try {
     const result = await fetchPublicHotspots({ latitude, longitude, radiusKm });
     res.set("Cache-Control", "public, max-age=300");

@@ -257,6 +257,10 @@ public final class MainActivity extends Activity {
             selectedSourceId = savedReceiver.sourceId;
             status.setText("A saved receiver connection is available. Tap Receive internet to resume.");
         }
+        if (getIntent().getBooleanExtra("open_receive_dialog", false)) {
+            getIntent().removeExtra("open_receive_dialog");
+            uiHandler.post(this::showReceiveDialog);
+        }
     }
 
     private boolean hasDiscoveryLocationPermission() {

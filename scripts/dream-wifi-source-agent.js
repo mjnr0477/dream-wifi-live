@@ -137,7 +137,7 @@ async function checkSourceInternet() {
           finish(false, "https_certificate_invalid");
           return;
         }
-        tlsSocket.write("GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\nUser-Agent: Dream-WiFi-Gateway-Health/1.0\\r\\n\\r\\n");
+        tlsSocket.write("GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\nUser-Agent: Dream-WiFi-Gateway-Health/1.0\r\n\r\n");
       });
       tlsSocket.on("data", chunk => {
         response += chunk.toString("latin1");
@@ -148,8 +148,8 @@ async function checkSourceInternet() {
         const headerEnd = response.indexOf("\\r\\n\\r\\n");
         if (headerEnd < 0) return;
         const statusLine = response.slice(0, headerEnd).split("\\r\\n", 1)[0];
-        if (/^HTTP\\/1\\.[01] 200(?: |$)/.test(statusLine)) finish(true, null);
-        else finish(false, "https_probe_" + (statusLine.match(/^HTTP\\/1\\.[01] (\\d{3})/) || [])[1] || "invalid_response");
+        if (/^HTTP\/1\.[01] 200(?: |$)/.test(statusLine)) finish(true, null);
+        else finish(false, "https_probe_" + (statusLine.match(/^HTTP\/1\.[01] (\d{3})/) || [])[1] || "invalid_response");
       });
       tlsSocket.once("error", error => finish(false, String(error.code || "https_probe_failed")));
     });

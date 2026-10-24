@@ -26,6 +26,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.ScrollView;
 
 import org.json.JSONObject;
 
@@ -217,7 +218,10 @@ public final class MainActivity extends Activity {
         status.setPadding(0, 12, 0, 0);
         box.addView(status, new LinearLayout.LayoutParams(-1, -2));
 
-        setContentView(box);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(box);
+        setContentView(scroll);
         refreshNetworkInfo();
 
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);

@@ -375,6 +375,7 @@ public final class RouterDiscoveryActivity extends Activity {
                             boolean online = source.optBoolean("connected", false);
                             boolean internetReady = source.optBoolean("internet_ready", false);
                             addParticipatingSource(
+                                    source.optString("id", ""),
                                     source.optString("name", "Dream Wi-Fi gateway"),
                                     source.optString("distance_km", "?"),
                                     online,
@@ -400,7 +401,7 @@ public final class RouterDiscoveryActivity extends Activity {
         });
     }
 
-    private void addParticipatingSource(String name, String distance, boolean online, boolean internetReady) {
+    private void addParticipatingSource(String sourceId, String name, String distance, boolean online, boolean internetReady) {
         LinearLayout card = card();
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -428,6 +429,8 @@ public final class RouterDiscoveryActivity extends Activity {
         connect.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class);
             intent.putExtra("open_receive_dialog", true);
+            intent.putExtra("selected_source_id", sourceId);
+            intent.putExtra("selected_source_name", name);
             startActivity(intent);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(44));

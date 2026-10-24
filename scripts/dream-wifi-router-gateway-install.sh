@@ -68,7 +68,7 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
 else
   git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
 fi
-npm --prefix "$INSTALL_DIR" ci --omit=dev --no-audit --no-fund
+npm --prefix "$INSTALL_DIR" install --omit=dev --no-audit --no-fund
 chown -R dreamwifi:dreamwifi "$INSTALL_DIR"
 
 umask 077

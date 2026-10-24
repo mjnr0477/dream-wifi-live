@@ -5,12 +5,16 @@ on:
     paths:
       - "android/dream-wifi-vpn/**"
       - ".github/workflows/dream-wifi-android-vpn.yml"
+      - ".github/workflows/dream-wifi-android-release.yml"
+      - "scripts/dream-wifi-android-vpn-smoke-test.js"
   push:
     branches:
       - main
     paths:
       - "android/dream-wifi-vpn/**"
       - ".github/workflows/dream-wifi-android-vpn.yml"
+      - ".github/workflows/dream-wifi-android-release.yml"
+      - "scripts/dream-wifi-android-vpn-smoke-test.js"
   workflow_dispatch:
 
 permissions:

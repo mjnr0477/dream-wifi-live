@@ -39,7 +39,7 @@ jobs:
       - name: Build debug APK
         working-directory: android/dream-wifi-vpn
         env:
-          DREAM_WIFI_BASE_URL: https://dream-wifi-500km-dev.onrender.com
+          DREAM_WIFI_BASE_URL: https://dream-wifi-live.onrender.com
         run: gradle --no-daemon clean assembleDebug
       - name: Upload debug APK for testing only
         uses: actions/upload-artifact@v4

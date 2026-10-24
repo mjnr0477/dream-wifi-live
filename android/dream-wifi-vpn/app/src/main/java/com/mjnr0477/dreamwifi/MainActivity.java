@@ -16,6 +16,7 @@ import android.content.IntentFilter;
 import android.net.VpnService;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
+import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
@@ -34,12 +35,16 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final int VPN_PERMISSION_REQUEST = 1001;
     private static final int SOURCE_LOCATION_REQUEST = 1002;
+    private static final int LOCAL_WIFI_SCAN_REQUEST = 1003;
     static final String ACTION_STATUS = "com.mjnr0477.dreamwifi.STATUS";
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText pairingCodeInput;
@@ -47,6 +52,7 @@ public final class MainActivity extends Activity {
     private Button sourceButton;
     private TextView status;
     private TextView networkInfo;
+    private TextView nearbyWifiResults;
     private String[] availableSourceIds = new String[0];
     private String[] availableSourceNames = new String[0];
     private String selectedSourceId = "";
@@ -76,7 +82,11 @@ public final class MainActivity extends Activity {
     };
     private final BroadcastReceiver networkReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
-            refreshNetworkInfo();
+            if (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(intent.getAction())) {
+                renderNearbyWifiScanResults();
+            } else {
+                refreshNetworkInfo();
+            }
         }
     };
 
@@ -165,6 +175,19 @@ public final class MainActivity extends Activity {
         dashboardButton.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
         discoverCard.addView(dashboardButton, fullWidth());
         page.addView(discoverCard, cardParams());
+
+        LinearLayout localScanCard = makeCard(panel);
+        addCardHeading(localScanCard, "Nearby Wi-Fi scan", "Scan radio networks your phone can physically detect, then compare their names and signal levels.");
+        Button scanButton = makeButton("Scan nearby networks", blue, navy);
+        scanButton.setOnClickListener(v -> scanNearbyWifi());
+        localScanCard.addView(scanButton, fullWidth());
+        nearbyWifiResults = new TextView(this);
+        nearbyWifiResults.setText("Tap scan to list nearby Wi-Fi signals.");
+        nearbyWifiResults.setTextColor(muted);
+        nearbyWifiResults.setTextSize(13);
+        nearbyWifiResults.setLineSpacing(dp(3), 1.0f);
+        addWithTopMargin(localScanCard, nearbyWifiResults, 12);
+        page.addView(localScanCard, cardParams());
 
         LinearLayout statusCard = makeCard(panel);
         addCardHeading(statusCard, "Connection status", "Live updates from the app appear here.");
@@ -395,6 +418,67 @@ public final class MainActivity extends Activity {
         return best;
     }
 
+    private void scanNearbyWifi() {
+        if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        if (wifiManager == null || !wifiManager.isWifiEnabled()) {
+            status.setText("Turn on Wi-Fi to scan nearby wireless networks.");
+            return;
+        }
+        boolean hasFineLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean hasNearbyPermission = Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED;
+        if (!hasFineLocation || !hasNearbyPermission) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES}, LOCAL_WIFI_SCAN_REQUEST);
+            } else {
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCAL_WIFI_SCAN_REQUEST);
+            }
+            status.setText("Allow nearby Wi-Fi permission so Android can return scan results.");
+            return;
+        }
+        boolean started = false;
+        try {
+            started = wifiManager.startScan();
+        } catch (SecurityException error) {
+            status.setText("Android denied the Wi-Fi scan. Check nearby Wi-Fi permissions and retry.");
+            return;
+        }
+        renderNearbyWifiScanResults();
+        status.setText(started
+                ? "Nearby Wi-Fi scan requested. Results refresh when Android completes the scan."
+                : "Android limited a new scan; showing the latest results available on this phone.");
+    }
+
+    private void renderNearbyWifiScanResults() {
+        if (nearbyWifiResults == null || wifiManager == null) return;
+        try {
+            List<ScanResult> results = new ArrayList<>(wifiManager.getScanResults());
+            Collections.sort(results, (left, right) -> Integer.compare(right.level, left.level));
+            if (results.isEmpty()) {
+                nearbyWifiResults.setText("No scan results yet. Keep Wi-Fi enabled, allow permission, and try again.");
+                return;
+            }
+            StringBuilder text = new StringBuilder();
+            int shown = Math.min(results.size(), 15);
+            for (int i = 0; i < shown; i++) {
+                ScanResult result = results.get(i);
+                String ssid = result.SSID == null || result.SSID.trim().isEmpty() ? "Hidden network" : result.SSID.trim();
+                String security = result.capabilities != null && result.capabilities.contains("WEP") ? "WEP"
+                        : result.capabilities != null && result.capabilities.contains("PSK") ? "Secured"
+                        : result.capabilities != null && result.capabilities.contains("EAP") ? "Enterprise"
+                        : result.capabilities != null && result.capabilities.contains("SAE") ? "Secured"
+                        : "Open or unknown";
+                if (i > 0) text.append("\\n");
+                text.append("• ").append(ssid).append(" · ").append(result.level).append(" dBm · ")
+                        .append(result.frequency).append(" MHz · ").append(security);
+            }
+            if (results.size() > shown) text.append("\\n+ ").append(results.size() - shown).append(" more networks");
+            nearbyWifiResults.setText(text.toString());
+        } catch (SecurityException error) {
+            nearbyWifiResults.setText("Android did not allow scan results. Check location and nearby Wi-Fi permissions.");
+        }
+    }
+
     private void refreshNetworkInfo() {
         if (networkInfo == null) return;
         String remote = selectedSourceLabel();
@@ -508,6 +592,13 @@ public final class MainActivity extends Activity {
                 pendingSourceLongitude = null;
             }
             performSourceEnrollment();
+        } else if (requestCode == LOCAL_WIFI_SCAN_REQUEST) {
+            boolean granted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            if (Build.VERSION.SDK_INT >= 33) {
+                granted = granted && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED;
+            }
+            if (granted) scanNearbyWifi();
+            else status.setText("Wi-Fi scan permission was not granted. Allow nearby Wi-Fi/location permission and retry.");
         }
     }
 
@@ -578,6 +669,7 @@ public final class MainActivity extends Activity {
         if (!networkReceiverRegistered) {
             IntentFilter networkFilter = new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION);
             networkFilter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+            networkFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
             networkFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(networkReceiver, networkFilter, Context.RECEIVER_NOT_EXPORTED);
             else registerReceiver(networkReceiver, networkFilter);

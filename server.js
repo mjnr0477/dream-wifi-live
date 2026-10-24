@@ -157,7 +157,7 @@ app.get("/api/wifi/sources", async (req, res) => {
 app.get("/api/wifi/hotspots", async (req, res) => {
   const latitude = coordinate(req.query.latitude, -90, 90);
   const longitude = coordinate(req.query.longitude, -180, 180);
-  const radiusKm = Number(req.query.radius_km || 300);
+  const radiusKm = Number(req.query.radius_km || 500);
   if (latitude === null || longitude === null) return res.status(400).json({ success: false, error: "Allow location access to search public hotspots." });
   if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 500) return res.status(400).json({ success: false, error: "radius_km must be between 1 and 500." });
   try {

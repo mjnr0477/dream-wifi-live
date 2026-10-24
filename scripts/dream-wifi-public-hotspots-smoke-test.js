@@ -3,12 +3,12 @@ const assert = require("node:assert/strict");
 const { buildOverpassQuery, distanceKm, normalizeElements, fetchPublicHotspots } = require("../product/dream_wifi_public_hotspots");
 
 async function main() {
-  const query = buildOverpassQuery(-0.56, 34.56, 300);
-  assert.match(query, /around:300000,-0\.56,34\.56/);
+  const query = buildOverpassQuery(-0.56, 34.56, 500;
+  assert.match(query, /around:500000,-0\.56,34\.56/);
   assert.match(query, /internet_access/);
   assert.match(query, /\["wifi"~/);
   assert.throws(() => buildOverpassQuery(91, 0, 20), /latitude/);
-  assert.throws(() => buildOverpassQuery(0, 0, 301), /radiusKm/);
+  assert.throws(() => buildOverpassQuery(0, 0, 501, /radiusKm/);
   assert.throws(() => buildOverpassQuery(0, 0, 0), /radiusKm/);
   assert.ok(distanceKm(-0.56, 34.56, -0.56, 34.56) < 0.001);
 

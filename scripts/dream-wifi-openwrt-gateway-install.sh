@@ -30,7 +30,7 @@ fi
 
 printf 'Installing required OpenWrt packages (this may use router storage)...\n'
 opkg update
-opkg install node node-npm git-http ca-bundle curl tar coreutils-tr coreutils-cut
+opkg install node node-npm git-http ca-bundle curl tar jsonfilter coreutils-tr coreutils-cut
 command -v node >/dev/null 2>&1 || fail "Node.js is unavailable for this router architecture/firmware."
 command -v npm >/dev/null 2>&1 || fail "npm is unavailable for this router architecture/firmware."
 node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' || fail "Node.js 18 or newer is required."
@@ -54,9 +54,10 @@ else
 fi
 npm --prefix "$INSTALL_DIR" install --omit=dev --no-audit --no-fund
 
+TUNNEL_URL="$(printf '%s' "$BASE_URL" | sed 's#^https:#wss:#')"
 umask 077
 {
-  printf "DREAM_WIFI_TUNNEL_URL=%s\n" "${BASE_URL/https:/wss:}/api/dream-wifi/tunnel"
+  printf "DREAM_WIFI_TUNNEL_URL=%s\n" "$TUNNEL_URL"
   printf "DREAM_WIFI_SOURCE_ID=%s\n" "$SOURCE_ID"
   printf "DREAM_WIFI_SOURCE_TOKEN=%s\n" "$SOURCE_TOKEN"
   printf "DREAM_WIFI_SOURCE_NAME=%s\n" "$SOURCE_NAME"

@@ -12,6 +12,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.VpnService;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -49,6 +51,7 @@ public final class MainActivity extends Activity {
     private Button sourceButton;
     private TextView status;
     private TextView networkInfo;
+    private ScrollView homeScrollView;
     private LinearLayout pairingCard;
     private TextView pairingCodeDisplay;
     private TextView pairingExpiryDisplay;
@@ -150,7 +153,10 @@ public final class MainActivity extends Activity {
 
         Button shareButton = new Button(this);
         shareButton.setText("Share internet");
-        shareButton.setOnClickListener(v -> enrollAndStartSource());
+        shareButton.setOnClickListener(v -> {
+            showPairingCodeCard();
+            enrollAndStartSource();
+        });
         styleActionButton(shareButton, android.graphics.Color.rgb(21, 94, 239), android.graphics.Color.WHITE);
         box.addView(shareButton, fullWidthButton());
 
@@ -235,10 +241,10 @@ public final class MainActivity extends Activity {
         status.setPadding(0, 12, 0, 0);
         box.addView(status, new LinearLayout.LayoutParams(-1, -2));
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(box);
-        setContentView(scroll);
+        homeScrollView = new ScrollView(this);
+        homeScrollView.setFillViewport(true);
+        homeScrollView.addView(box);
+        setContentView(homeScrollView);
         refreshNetworkInfo();
 
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
@@ -293,6 +299,9 @@ public final class MainActivity extends Activity {
         refreshPairingCodeCard();
         uiHandler.removeCallbacks(pairingCodeRefresh);
         uiHandler.post(pairingCodeRefresh);
+        pairingCard.post(() -> {
+            if (homeScrollView != null) homeScrollView.smoothScrollTo(0, pairingCard.getTop());
+        });
     }
 
     private LinearLayout.LayoutParams fullWidthButton() {
@@ -390,20 +399,35 @@ public final class MainActivity extends Activity {
             status.setText("The Dream Wi-Fi service URL is not configured in this APK build.");
             return;
         }
-        if (wifiManager == null) wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-        if (wifiManager == null || !wifiManager.isWifiEnabled()) {
-            status.setText("Connect this phone to the Wi-Fi network you want to share, then retry.");
+        if (!hasValidatedInternetConnection()) {
+            status.setText("Connect to Wi-Fi or turn on mobile data with internet, then tap Share internet again.");
             return;
         }
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, SOURCE_LOCATION_REQUEST);
-            status.setText("Location permission lets Dream Wi-Fi show this source in the radius tracker. You can still share without location.");
-            return;
-        }
+        // Location is optional for sharing. Never block source setup on a location permission prompt.
         Location location = getApproximateLocation();
         pendingSourceLatitude = location == null ? null : location.getLatitude();
         pendingSourceLongitude = location == null ? null : location.getLongitude();
         performSourceEnrollment();
+    }
+
+    private boolean hasValidatedInternetConnection() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) return false;
+        Network active = manager.getActiveNetwork();
+        if (active != null && hasValidatedInternet(manager, active)) return true;
+        for (Network network : manager.getAllNetworks()) {
+            if (hasValidatedInternet(manager, network)) return true;
+        }
+        return false;
+    }
+
+    private boolean hasValidatedInternet(ConnectivityManager manager, Network network) {
+        NetworkCapabilities caps = manager.getNetworkCapabilities(network);
+        return caps != null
+                && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                && (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    || caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
     }
 
     private void performSourceEnrollment() {
@@ -602,7 +626,7 @@ public final class MainActivity extends Activity {
         intent.putExtra(DreamVpnService.EXTRA_SOURCE_ONLY, true);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
         else startService(intent);
-        status.setText("Starting secure internet sharing. Keep this phone connected to Wi-Fi.");
+        status.setText("Starting secure internet sharing over Wi-Fi or mobile data. Keep this phone online.");
         showPairingCodeCard();
     }
 

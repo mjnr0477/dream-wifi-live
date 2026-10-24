@@ -5,6 +5,10 @@ on:
       - idea/500km-one-phone-router-discovery
     paths:
       - "android/dream-wifi-vpn/**"
+      - "product/dream_wifi_tunnel_engine.js"
+      - "scripts/dream-wifi-source-agent.js"
+      - "scripts/dream-wifi-pairing-refresh-test.js"
+      - "package.json"
       - ".github/workflows/one-phone-router-discovery-apk.yml"
   pull_request:
     branches:

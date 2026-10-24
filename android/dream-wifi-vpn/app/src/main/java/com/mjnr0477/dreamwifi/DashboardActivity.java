@@ -135,7 +135,7 @@ public final class DashboardActivity extends Activity {
             progressBar.setVisibility(View.GONE);
             webView.setVisibility(View.GONE);
             TextView setupNotice = new TextView(this);
-            setupNotice.setText("Development workspace\\n\\nThis build is intentionally not connected to the published Dream Wi-Fi service. Configure DREAM_WIFI_BASE_URL with a separate development backend, then rebuild to enable discovery and pairing.");
+            setupNotice.setText("Development workspace\n\nThis build is intentionally not connected to the published Dream Wi-Fi service. Configure DREAM_WIFI_BASE_URL with a separate development backend, then rebuild to enable discovery and pairing.");
             setupNotice.setTextSize(16);
             setupNotice.setPadding(24, 32, 24, 24);
             root.addView(setupNotice, new LinearLayout.LayoutParams(

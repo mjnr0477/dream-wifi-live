@@ -14,6 +14,7 @@ assert.match(server, /slice\(0, 200\)/, "Source response must remain capped to p
 assert.match(page, /Scan physical Wi-Fi/);
 assert.match(page, /Participating Dream Wi-Fi sources/);
 assert.match(page, /Mapped public Wi-Fi places/);
+assert.match(page, /Internet, without the distance/);
 assert.match(page, /value="500" selected/);
 const landing = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
 assert.match(landing, /Find a connection/);

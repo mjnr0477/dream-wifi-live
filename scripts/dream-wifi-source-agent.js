@@ -4,6 +4,7 @@
 // This is not a general LAN proxy: private, loopback, link-local, and special-purpose destinations are blocked.
 const dns = require("node:dns").promises;
 const net = require("node:net");
+const tls = require("node:tls");
 const dgram = require("node:dgram");
 const os = require("node:os");
 const { execFile } = require("node:child_process");
@@ -112,21 +113,48 @@ async function checkSourceInternet() {
     if (socket !== checkedSocket || checkedSocket.readyState !== WebSocket.OPEN) return;
     await new Promise(resolve => {
       let settled = false;
-      const tcp = net.createConnection({ host: target.address, family: target.family, port: 443 });
+      let response = "";
       const finish = (success, error) => {
         if (settled) return;
         settled = true;
         ready = success;
         errorMessage = error || null;
-        tcp.destroy();
+        clearTimeout(timer);
+        tlsSocket.destroy();
         resolve();
       };
-      tcp.setTimeout(5000, () => finish(false, "internet_probe_timeout"));
-      tcp.once("connect", () => finish(true, null));
-      tcp.once("error", error => finish(false, String(error.code || "internet_probe_failed")));
+      const timer = setTimeout(() => finish(false, "https_probe_timeout"), 7000);
+      const tlsSocket = tls.connect({
+        host: target.address,
+        family: target.family,
+        port: 443,
+        servername: "example.com",
+        rejectUnauthorized: true
+      });
+      tlsSocket.setTimeout(6000, () => finish(false, "https_probe_timeout"));
+      tlsSocket.once("secureConnect", () => {
+        if (!tlsSocket.authorized) {
+          finish(false, "https_certificate_invalid");
+          return;
+        }
+        tlsSocket.write("GET / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\nUser-Agent: Dream-WiFi-Gateway-Health/1.0\\r\\n\\r\\n");
+      });
+      tlsSocket.on("data", chunk => {
+        response += chunk.toString("latin1");
+        if (response.length > 16384) {
+          finish(false, "https_probe_response_too_large");
+          return;
+        }
+        const headerEnd = response.indexOf("\\r\\n\\r\\n");
+        if (headerEnd < 0) return;
+        const statusLine = response.slice(0, headerEnd).split("\\r\\n", 1)[0];
+        if (/^HTTP\\/1\\.[01] 200(?: |$)/.test(statusLine)) finish(true, null);
+        else finish(false, "https_probe_" + (statusLine.match(/^HTTP\\/1\\.[01] (\\d{3})/) || [])[1] || "invalid_response");
+      });
+      tlsSocket.once("error", error => finish(false, String(error.code || "https_probe_failed")));
     });
   } catch (error) {
-    errorMessage = String(error.code || error.message || "internet_probe_failed").slice(0, 120);
+    errorMessage = String(error.code || error.message || "https_probe_failed").slice(0, 120);
   }
   if (socket === checkedSocket && checkedSocket.readyState === WebSocket.OPEN) {
     checkedSocket.send(JSON.stringify({
@@ -137,7 +165,6 @@ async function checkSourceInternet() {
     }));
   }
 }
-
 function closeUdpFlow(key) {
   const entry = udpSockets.get(key); if (!entry) return; udpSockets.delete(key);
   if (entry.timer) clearTimeout(entry.timer); try { entry.socket.close(); } catch (_) {}

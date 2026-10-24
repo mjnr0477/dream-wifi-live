@@ -112,13 +112,17 @@
   }
   function renderSources(data) {
     $("sources").replaceChildren();
-    $("source-summary").textContent = data.count + " participating sources within " + data.radius_km + " km · " + data.online_count + " relay connected";
+    $("source-summary").textContent = data.count + " participating sources within " + data.radius_km + " km · " + data.online_count + " relay connected · internet-ready sources prioritized; speed is not measured yet";
     if (!data.sources.length) {
       const p = document.createElement("p"); p.className = "muted";
       p.textContent = "No participating Dream Wi-Fi source devices with known coordinates were found. This does not mean there are no Wi-Fi hotspots nearby.";
       $("sources").appendChild(p); return;
     }
-    for (const source of data.sources) {
+    const rankedSources = [...data.sources].sort((a, b) => {
+      const priority = source => source.connected && source.internet_ready === true ? 0 : source.connected ? 1 : 2;
+      return priority(a) - priority(b) || Number(a.distance_km) - Number(b.distance_km);
+    });
+    for (const source of rankedSources) {
       const item = document.createElement("article"); item.className = "tile";
       const title = document.createElement("strong"); title.textContent = source.name;
       const details = document.createElement("p"); details.className = "muted";

@@ -9,9 +9,20 @@ const js = fs.readFileSync(path.join(root, "public/discovery.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public/app.js"), "utf8");
 const activity = fs.readFileSync(path.join(root, "android/dream-wifi-vpn/app/src/main/java/com/mjnr0477/dreamwifi/DashboardActivity.java"), "utf8");
 const manifest = fs.readFileSync(path.join(root, "android/dream-wifi-vpn/app/src/main/AndroidManifest.xml"), "utf8");
+const { compareSourceCandidates, sourcePriority } = require(path.join(root, "product/dream_wifi_source_ranking.js"));
 assert.match(server, /radiusKm > 20040/, "Participating source search must support worldwide radius.");
 assert.match(server, /Worldwide search covers the registered Dream Wi-Fi source directory only/, "Worldwide search must explain that it is not a global router scanner.");
 assert.match(server, /slice\(0, 200\)/, "Source response must remain capped to protect the API.");
+const candidates = [
+  { id: "far-ready", connected: true, internet_ready: true, distance_km: 450 },
+  { id: "near-offline", connected: false, internet_ready: null, distance_km: 2 },
+  { id: "near-ready", connected: true, internet_ready: true, distance_km: 12 },
+  { id: "connected-unverified", connected: true, internet_ready: null, distance_km: 1 }
+].sort(compareSourceCandidates);
+assert.deepEqual(candidates.map(source => source.id), ["near-ready", "far-ready", "connected-unverified", "near-offline"],
+  "Live internet-ready gateways must outrank nearer offline sources; distance breaks ties.");
+assert.equal(sourcePriority({ connected: true, internet_ready: false }), 2);
+assert.match(server, /sort\(compareSourceCandidates\)/, "API must apply gateway ranking before returning discovery results.");
 assert.match(page, /Scan physical Wi-Fi/);
 assert.match(page, /Participating Dream Wi-Fi sources/);
 assert.match(page, /Mapped public Wi-Fi places/);

@@ -19,6 +19,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, separate from Dream Education. Pr
 - `/share.html` is the source-device setup guide. It explains that a person must run the authorized source agent; opening a link does not activate sharing.
 - `/receive.html` is the browser receiver. It requires a one-time code from the source owner and can run a real HTTP probe through the selected source relay.
 - The native prototype is in `android/dream-wifi-vpn`. Its core UI uses standalone source enrollment and receiver pairing, with Android `VpnService` and a native TUN-to-SOCKS engine. The Android debug APK build passed in GitHub Actions; physical-device acceptance testing remains outstanding.
+- **Remote router connection:** an authorized owner can install `scripts/dream-wifi-router-gateway-install.sh` on a systemd Linux host connected to the remote router. It enrolls a source-scoped credential, runs the source relay as a service, and lets the Android receiver connect with a one-time code. See [`docs/REMOTE-ROUTER-CONNECTION.md`](docs/REMOTE-ROUTER-CONNECTION.md). Ordinary routers cannot be reached from a map pin without an authorized gateway; the installer is not compatible with every stock router firmware.
 - A source-side DNS/TCP or HTTPS probe is reported separately from relay connection status. Neither is a substitute for an end-to-end receiver traffic test.
 - Downstream hotspot forwarding is not implemented/verified; do not advertise it as working.
 

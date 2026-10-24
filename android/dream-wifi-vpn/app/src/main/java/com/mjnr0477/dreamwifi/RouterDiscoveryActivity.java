@@ -236,7 +236,7 @@ public final class RouterDiscoveryActivity extends Activity {
                     pendingOpenSsid = r.SSID;
                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
                         requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 415);
-                    } else { String ssid = pendingOpenSsid; pendingOpenSsid = null; suggestOpenNetwork(ssid); }
+                    } else { String chosenSsid = pendingOpenSsid; pendingOpenSsid = null; suggestOpenNetwork(chosenSsid); }
                 } else {
                     Toast.makeText(this, "This network is secured or hidden. Android Wi-Fi settings will ask you to join it with the owner's permission.", Toast.LENGTH_LONG).show();
                     startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));

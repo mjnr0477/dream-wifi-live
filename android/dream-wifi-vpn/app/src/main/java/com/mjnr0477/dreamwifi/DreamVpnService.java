@@ -76,20 +76,22 @@ public final class DreamVpnService extends VpnService {
         if (manager == null) return;
         NetworkRequest request = new NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build();
         wifiNetworkCallback = new ConnectivityManager.NetworkCallback() {
             @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
-                boolean validatedWifi = capabilities != null
-                        && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                boolean validatedInternet = capabilities != null
+                        && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                            || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
                         && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                         && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
                 networkHandler.post(() -> {
-                    if (activeSourceMode && network.equals(activeSourceNetwork) && !validatedWifi) {
+                    if (activeSourceMode && network.equals(activeSourceNetwork) && !validatedInternet) {
                         activeSourceNetwork = null;
-                        updateNotification("Source Wi-Fi lost validated internet; waiting to reconnect.");
+                        updateNotification("Source internet connection lost; waiting to reconnect.");
                     }
-                    if (validatedWifi) maybeReconnectSourceOnNetwork(network);
+                    if (validatedInternet) maybeReconnectSourceOnNetwork(network);
                 });
             }
 
@@ -97,7 +99,7 @@ public final class DreamVpnService extends VpnService {
                 networkHandler.post(() -> {
                     if (activeSourceMode && network.equals(activeSourceNetwork)) {
                         activeSourceNetwork = null;
-                        updateNotification("Source Wi-Fi disconnected; waiting for a validated Wi-Fi network.");
+                        updateNotification("Source network disconnected; waiting for validated Wi-Fi or mobile data.");
                     }
                 });
             }
@@ -113,7 +115,7 @@ public final class DreamVpnService extends VpnService {
     private void maybeReconnectSourceOnNetwork(Network network) {
         if (!activeSourceMode || network == null || network.equals(activeSourceNetwork)) return;
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        if (manager == null || !isInternetWifi(manager, network)) return;
+        if (manager == null || !isValidatedSourceNetwork(manager, network)) return;
         DreamWifiCredentialStore.SourceCredentials credentials = DreamWifiCredentialStore.loadSource(this);
         if (credentials == null) {
             activeSourceMode = false;
@@ -122,7 +124,7 @@ public final class DreamVpnService extends VpnService {
             return;
         }
 
-        updateNotification("Source Wi-Fi changed; reconnecting the relay on the validated network.");
+        updateNotification("Source internet changed; reconnecting the relay on the validated network.");
         DreamWifiRelay previous = relay;
         relay = null;
         if (previous != null) previous.stop();
@@ -209,8 +211,8 @@ public final class DreamVpnService extends VpnService {
         Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
         ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         Network sourceNetwork = sourceOnly
-                ? (requestedSourceNetwork != null && networkManager != null && isInternetWifi(networkManager, requestedSourceNetwork)
-                    ? requestedSourceNetwork : findConnectedWifiNetwork())
+                ? (requestedSourceNetwork != null && networkManager != null && isValidatedSourceNetwork(networkManager, requestedSourceNetwork)
+                    ? requestedSourceNetwork : findConnectedSourceNetwork())
                 : null;
         if (sourceOnly && sourceNetwork == null) {
             activeSourceNetwork = null;
@@ -220,12 +222,12 @@ public final class DreamVpnService extends VpnService {
                 activeSourceMode = true;
                 getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
                         .putString(KEY_ACTIVE_MODE, MODE_SOURCE).commit();
-                updateNotification("No validated Wi-Fi yet; waiting to resume the source relay automatically.");
+                updateNotification("No validated internet network yet; waiting for Wi-Fi or mobile data.");
                 return START_STICKY;
             }
             activeSourceMode = false;
             clearActiveMode();
-            updateNotification("Connect this phone to a Wi-Fi network with internet before publishing it as a source.");
+            updateNotification("Connect to Wi-Fi or enable mobile data with internet before sharing.");
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -235,7 +237,7 @@ public final class DreamVpnService extends VpnService {
         activeSourceLongitude = sourceOnly ? sourceLongitude : Double.NaN;
         getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_ACTIVE_MODE, sourceOnly ? MODE_SOURCE : MODE_RECEIVER).commit();
-        String sourceName = sourceOnly ? getConnectedWifiName() : "Android " + Build.MODEL;
+        String sourceName = sourceOnly ? getConnectedSourceName(sourceNetwork) : "Android " + Build.MODEL;
         Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
         relay = new DreamWifiRelay(pairingCode, receiverAccessToken, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
@@ -332,13 +334,13 @@ public final class DreamVpnService extends VpnService {
         getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit().remove(KEY_ACTIVE_MODE).commit();
     }
 
-    private Network findConnectedWifiNetwork() {
+    private Network findConnectedSourceNetwork() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (manager == null) return null;
         Network active = manager.getActiveNetwork();
-        if (active != null && isInternetWifi(manager, active)) return active;
+        if (active != null && isValidatedSourceNetwork(manager, active)) return active;
         for (Network network : manager.getAllNetworks()) {
-            if (isInternetWifi(manager, network)) return network;
+            if (isValidatedSourceNetwork(manager, network)) return network;
         }
         return null;
     }
@@ -351,7 +353,8 @@ public final class DreamVpnService extends VpnService {
             if (sourceNetwork != null && sourceNetwork.equals(network)) continue;
             NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
             if (capabilities != null
-                    && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
                     && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
                 return network;
@@ -360,22 +363,32 @@ public final class DreamVpnService extends VpnService {
         return null;
     }
 
-    private boolean isInternetWifi(ConnectivityManager manager, Network network) {
+    private boolean isValidatedSourceNetwork(ConnectivityManager manager, Network network) {
         NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
         return capabilities != null
-                && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
-    private String getConnectedWifiName() {
-        try {
-            WifiManager manager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-            WifiInfo info = manager == null ? null : manager.getConnectionInfo();
-            String ssid = info == null ? "" : info.getSSID();
-            if (ssid != null && !ssid.equals("<unknown ssid>")) {
-                return ssid.replaceAll("^\\\"|\\\"$", "").trim();
-            }
-        } catch (Exception ignored) {}
+    private String getConnectedSourceName(Network network) {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkCapabilities caps = manager == null || network == null ? null : manager.getNetworkCapabilities(network);
+        if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            try {
+                WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                WifiInfo info = wifi == null ? null : wifi.getConnectionInfo();
+                String ssid = info == null ? "" : info.getSSID();
+                if (ssid != null && !ssid.equals("<unknown ssid>")) {
+                    return ssid.replaceAll("^\\\"|\\\"$", "").trim();
+                }
+            } catch (Exception ignored) {}
+            return "Wi-Fi · Android " + Build.MODEL;
+        }
+        if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+            return "Mobile data · Android " + Build.MODEL;
+        }
         return "Android " + Build.MODEL;
     }
 

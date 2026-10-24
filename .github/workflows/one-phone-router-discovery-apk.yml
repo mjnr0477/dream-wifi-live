@@ -1,0 +1,50 @@
+name: One-phone router discovery APK
+on:
+  push:
+    branches:
+      - idea/500km-one-phone-router-discovery
+    paths:
+      - "android/dream-wifi-vpn/**"
+      - ".github/workflows/one-phone-router-discovery-apk.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "android/dream-wifi-vpn/**"
+      - ".github/workflows/one-phone-router-discovery-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out isolated development branch
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install required Android NDK
+        run: sdkmanager "ndk;27.2.12479018"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        working-directory: android/dream-wifi-vpn
+        env:
+          DREAM_WIFI_BASE_URL: https://dream-wifi-500km-dev.onrender.com
+        run: gradle --no-daemon clean assembleDebug
+      - name: Upload debug APK for testing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: dream-wifi-one-phone-router-discovery-debug
+          path: android/dream-wifi-vpn/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

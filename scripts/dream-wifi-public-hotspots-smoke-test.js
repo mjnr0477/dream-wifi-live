@@ -8,7 +8,7 @@ async function main() {
   assert.match(query, /internet_access/);
   assert.match(query, /\["wifi"~/);
   assert.throws(() => buildOverpassQuery(91, 0, 20), /latitude/);
-  assert.throws(() => buildOverpassQuery(0, 0, 501, /radiusKm/);
+  assert.throws(() => buildOverpassQuery(0, 0, 501), /radiusKm/);
   assert.throws(() => buildOverpassQuery(0, 0, 0), /radiusKm/);
   assert.ok(distanceKm(-0.56, 34.56, -0.56, 34.56) < 0.001);
 

@@ -4,6 +4,9 @@
   const API = location.origin;
   let position = null;
   let locationPromise = null;
+  let locationWatchId = null;
+  let lastAutoRefreshAt = 0;
+  let autoRefreshRunning = false;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
   function distanceKm(aLat, aLon, bLat, bLon) {
     const rad = n => n * Math.PI / 180;
@@ -83,6 +86,7 @@
     renderHotspots(await json(API + "/api/wifi/hotspots?" + params));
   }
   async function searchAll() {
+    lastAutoRefreshAt = Date.now();
     $("search-all").disabled = true;
     try {
       await searchSources();
@@ -140,6 +144,21 @@
     note.textContent = data.note || "Networks shown are within local radio range. A scan result does not mean the network is open or has internet.";
     root.appendChild(note);
   }
+  function startLocationWatch() {
+    if (locationWatchId !== null || !navigator.geolocation) return;
+    locationWatchId = navigator.geolocation.watchPosition(p => {
+      const next = { latitude:p.coords.latitude, longitude:p.coords.longitude };
+      const moved = !position || distanceKm(position.latitude, position.longitude, next.latitude, next.longitude) >= 2;
+      const refreshDue = Date.now() - lastAutoRefreshAt >= 15 * 60 * 1000;
+      position = next;
+      if ((moved || refreshDue) && !autoRefreshRunning) {
+        autoRefreshRunning = true;
+        searchAll().catch(e => { $("status").textContent = "Automatic map refresh failed: " + e.message; }).finally(() => { autoRefreshRunning = false; });
+      }
+    }, () => { $("status").textContent = "Live location updates paused. Check location permission and Android battery settings."; },
+    { enableHighAccuracy:false, maximumAge:120000, timeout:20000 });
+  }
+
   $("scan-local").addEventListener("click", () => {
     const native = window.DreamWifiNative;
     if (!native || typeof native.requestLocalWifiScan !== "function") {
@@ -162,5 +181,5 @@
   });
   $("source-range").addEventListener("change", () => { if (position) searchSources().catch(e => $("status").textContent = e.message); });
   $("map-range").addEventListener("change", () => { if (position) searchMap().catch(e => $("map-summary").textContent = e.message); });
-  locate().then(() => searchAll()).catch(e => { $("status").textContent = e.message + " Tap Search online after allowing location."; });
+  locate().then(() => searchAll()).then(startLocationWatch).catch(e => { $("status").textContent = e.message + " Tap Search online after allowing location."; });
 })();

@@ -220,6 +220,7 @@ starts here.", 29, 0xffffffff, true);
         try { found = wifi == null ? Collections.emptyList() : wifi.getScanResults(); } catch (SecurityException ignored) {}
         if (found == null) found = Collections.emptyList();
         Collections.sort(found, (a, b) -> Integer.compare(b.level, a.level));
+        addSectionHeader("Nearby Wi-Fi signals · strongest first");
         for (ScanResult network : found) {
             if (network == null) continue;
             String ssid = network.SSID == null || network.SSID.trim().isEmpty() ? "(Hidden Wi-Fi network)" : network.SSID.trim();
@@ -227,10 +228,7 @@ starts here.", 29, 0xffffffff, true);
             localCount++;
         }
         if (found.isEmpty()) {
-            addSectionHeader("Nearby Wi-Fi signals");
             addInfoCard("No scan results available", "Android may rate-limit scans or hide results until permissions and Location are enabled. Wait a few seconds and tap Scan again.", null, null);
-        } else {
-            addSectionHeader("Nearby Wi-Fi signals · strongest first");
         }
         loadMappedPlaces();
     }

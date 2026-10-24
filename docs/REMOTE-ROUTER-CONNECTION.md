@@ -31,3 +31,17 @@ Dream Wi-Fi can carry a receiver phone's supported TCP/UDP traffic through an **
 ## Security
 
 Each gateway gets a unique source credential. Keep `/etc/dream-wifi-source.env` private; never copy the token into a web page, APK, issue, or chat. If a gateway is retired or compromised, revoke its source credential through the service's credential-management procedure and stop the systemd service. Only share networks you own or have permission to share.
+
+## Prove the real router-to-phone data path
+
+After the gateway is online and the receiver has a fresh pairing code, run the remote acceptance test from a separate Node.js machine with internet access. It pairs the receiver test client, opens a TCP stream through the registered source to `example.com:443`, validates the real TLS certificate, sends an HTTPS request, and checks the returned HTTP 200 response/body. This is stronger than a build, a green source badge, or a simulated protocol test.
+
+```sh
+npm install --no-audit --no-fund
+DREAM_WIFI_TUNNEL_URL="wss://dream-wifi-live.onrender.com/api/dream-wifi/tunnel" \
+DREAM_WIFI_PAIRING_CODE="PASTE_FRESH_12_CHARACTER_CODE" \
+npm run dream-wifi:acceptance:https
+```
+
+For an already-paired receiver session, use `DREAM_WIFI_ACCESS_TOKEN` and `DREAM_WIFI_SOURCE_ID` instead of the one-time code. Treat these values as secrets; do not commit them. A passing test proves real HTTPS passed through the source gateway at that time, but does not by itself prove the Android VPN routes all device traffic or establish a 500 km field test. The latter requires running the test with endpoints physically separated and recording the actual locations and result.
+

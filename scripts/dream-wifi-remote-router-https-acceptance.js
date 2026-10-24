@@ -126,7 +126,12 @@ async function main() {
     });
     console.log("PASS: TLS certificate verified; example.com returned",result.status);
     console.log("PASS:",result.bytes,"response bytes traversed the tunnel.");
-    const ipResult = await verifyHttps(endpoint,streamId + "-egress","api.ipify.org","/",body => {
+    const egressStreamId = streamId + "-egress";
+    endpoint.socket.send(JSON.stringify({type:"tcp-open",id:egressStreamId,host:"api.ipify.org",port:443,sourceId}));
+    const egressOpened = await endpoint.next(m => (m.type === "tcp-opened" || m.type === "tcp-error") && m.id === egressStreamId,"source public-egress TCP connection");
+    if (egressOpened.type === "tcp-error") throw new Error("Source could not open api.ipify.org:443: " + String(egressOpened.error || "unknown"));
+    console.log("PASS: source opened api.ipify.org:443");
+    const ipResult = await verifyHttps(endpoint,egressStreamId,"api.ipify.org","/",body => {
       assert.match(body,/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/,"Remote egress check did not return an IPv4 address.");
       const octets = body.split(".").map(Number);
       assert.ok(octets.every(n => n >= 0 && n <= 255),"Remote egress IP is malformed.");

@@ -643,8 +643,4 @@ public final class MainActivity extends Activity {
         super.onPause();
     }
 
-    @Override protected void onDestroy() {
-        authWorker.shutdownNow();
-        super.onDestroy();
-    }
 }

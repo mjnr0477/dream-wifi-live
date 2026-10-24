@@ -77,7 +77,7 @@ jobs:
           jarsigner -verify -certs "$AAB"
           keytool -printcert -jarfile "$AAB" | grep -q "SHA256:"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.mjnr0477.dreamwifi' versionCode='1' versionName='0.1.0'"
-          # Extract fingerprints without head pipelines, which can trigger SIGPIPE under pipefail.
+          # Extract fingerprints without head pipelines, which can trigger SIGPIPE under pipefail. This check runs on every main update.
           APK_CERT="$( "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ { if (!found) { print $2; found=1 } } END { if (!found) exit 1 }' )"
           AAB_CERT="$(keytool -printcert -jarfile "$AAB" | awk '/^[[:space:]]*SHA256:/ && !found { sub(/^[[:space:]]*SHA256:[[:space:]]*/, ""); print; found=1 } END { if (!found) exit 1 }' | tr -d ':')"
           APK_CERT="$(printf '%s' "$APK_CERT" | tr '[:lower:]' '[:upper:]' | tr -d ':')"

@@ -1,32 +1,51 @@
-# Making Dream Wi-Fi work across 500 km
+# Router-to-phone connectivity across 500 km
 
-## What “500 km” means
-The 500 km value is a discovery radius, not Wi-Fi radio range. A distant network is usable only when its owner has a live source endpoint connected to that network and has approved the receiver. A map listing alone cannot grant access.
+**Product decision:** Dream Wi-Fi is a router-to-phone product. The source is a router or an owner-authorized gateway attached to that router. A second phone is not the intended source device.
 
-## Route 1 — Phone-to-phone proof of concept (lowest hardware cost)
-1. Source phone connects to the Wi-Fi/mobile network it is allowed to share.
-2. Source owner runs the Dream Wi-Fi source agent on that phone using Termux, with a dedicated enrolled source ID/token. Keep the token private.
-3. The source agent opens an outbound WSS connection to the Dream Wi-Fi service; no inbound router port-forwarding is required.
-4. The owner gives the receiver the short-lived pairing code shown by the source.
-5. Receiver enters the code and starts Android's user-approved VPN. The VPN routes supported traffic through the source relay.
-6. Verify a real HTTPS page, DNS, screen-off/reconnect and a second app. A successful “online” badge or ping alone is not acceptance evidence.
+## The connection model
 
-Limitations: Android battery/background restrictions may stop Termux unless configured correctly; Android VPN routing and mobile-carrier policies can restrict traffic. A physical two-phone test is required.
+1. The router provides working internet at the remote site.
+2. The router owner enables a compatible Dream Wi-Fi gateway. This can be router-native software on supported firmware or a small always-on Linux device connected by Ethernet/Wi-Fi to the router.
+3. The gateway establishes an outbound encrypted WSS tunnel to Dream Wi-Fi and advertises its live status and location.
+4. The receiver searches for registered gateways within 500 km, selects one that is online and internet-ready, enters its short-lived authorization code, and approves Android VPN setup.
+5. The receiver performs actual HTTPS and DNS tests through the selected router gateway. The UI must not call a gateway connected until the traffic test succeeds.
 
-## Route 2 — Dedicated gateway near the router (more reliable)
-Run `scripts/dream-wifi-router-gateway-install.sh` on an owner-controlled Debian/Ubuntu/Raspberry Pi OS Linux host connected to the remote router. The installer enrolls a source identity, creates a restricted systemd service, and maintains an outbound WSS tunnel. Pair the receiver using the source's code.
+## Route A — Dedicated gateway (current practical implementation)
 
-This works across cities/countries when both endpoints have working internet, the host stays online, and the source network permits the traffic. It does not work on an ordinary stock router unless that router supports a compatible agent or a separate Linux host is attached.
+Use `scripts/dream-wifi-router-gateway-install.sh` on an owner-controlled Debian/Ubuntu/Raspberry Pi OS computer connected to the router. It enrolls a dedicated source credential and installs a restricted systemd service that reconnects to the server.
 
-## Route 3 — Router-native gateway
-For supported OpenWrt/Linux routers, package a minimal source agent or use a supported VPN such as WireGuard/Tailscale with explicit owner setup. This is the best long-term appliance experience, but requires firmware/package compatibility and device-specific testing. Do not claim support for every router.
+- The router remains the internet source; the gateway computer is only the secure bridge.
+- No public IP or inbound router port-forwarding is required because the gateway initiates the WSS connection.
+- The router owner must approve sharing and provide the location if it should appear in geographic discovery.
+- This installer is not compatible with every stock router and requires an always-on Linux host.
 
-## Required engineering and acceptance gates
-- Server: durable storage for source credentials and directory records; secure enrollment and revocation; TLS/WSS; abuse/rate limits.
-- Source: owner consent, one-time pairing code, source internet probe, reconnect/backoff, safe destination validation, clear stop-sharing control.
-- Android receiver: VPN consent, route only through the paired source, DNS behavior, reconnect after network changes, foreground-service notification and no silent bypass.
-- Test: two physical phones separated by a real long distance; confirm receiver HTTPS and DNS via the source, compare latency/throughput, test screen-off and reconnect, revoke pairing, and verify traffic stops.
-- Release: never label a gateway “connectable” from map data alone. Publish only after all acceptance gates pass.
+Detailed instructions: [Remote router connection](REMOTE-ROUTER-CONNECTION.md).
 
-## Security
-Never put source tokens, Supabase service-role keys, or long-lived credentials in the APK, a public issue, or a public log. Share only a short-lived pairing code with the intended receiver. Use networks only with the owner's explicit permission.
+## Route B — Router-native support (target experience)
+
+Build and validate packages for selected OpenWrt/Linux router models. The package should:
+- install the source agent or a supported tunnel client on the router itself;
+- keep credentials in root-only storage;
+- reconnect automatically and report router WAN health;
+- provide an owner-controlled share/stop switch and pairing-code rotation;
+- expose only the approved relay path, not an unrestricted router administration interface.
+
+Support must be declared per tested model/firmware. Do not promise that every consumer router can run the agent.
+
+## 500 km behaviour
+
+The 500 km setting is a search radius, not radio range. The receiver reaches the remote router through the public internet and the gateway tunnel. This can work beyond 500 km too, provided both ends have internet and the owner-authorized gateway remains online. A mapped Wi-Fi venue is not itself a reachable gateway.
+
+## Acceptance test before publication
+
+- Register an owner-authorized router gateway and verify it appears in discovery with a correct location.
+- From a receiver phone on a separate network, pair to that gateway and approve the VPN.
+- Load real HTTPS pages and verify DNS through the selected gateway.
+- Record tunnel latency, throughput, packet loss, and the source WAN status.
+- Test screen-off, network changes, gateway restart, expired/reused pairing codes, revocation, and disconnect behaviour.
+- Confirm traffic stops or safely returns to the receiver's normal connection according to the app's clearly disclosed policy when the gateway is offline.
+- Repeat with at least one supported router-native firmware build before advertising router-native compatibility.
+
+## Security and limitations
+
+Never expose source tokens or Supabase service-role keys in the APK, public repository, issue, or logs. Pairing codes should be short-lived and shared only with the intended receiver. Only share a network with the router owner's permission. Ordinary Wi-Fi radio cannot reach 500 km, arbitrary private routers cannot be joined from a map, and unsupported protocols or Android apps may not work through the prototype. Physical-device end-to-end testing remains mandatory.

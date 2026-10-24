@@ -132,7 +132,7 @@ public final class MainActivity extends Activity {
         box.addView(connectionArt, fullWidthButton());
 
         TextView artCaption = new TextView(this);
-        artCaption.setText("Connect people across town or across the world.");
+        artCaption.setText("Allow location once to discover Wi-Fi places while you travel.");
         artCaption.setTextSize(13);
         artCaption.setGravity(Gravity.CENTER);
         artCaption.setTextColor(android.graphics.Color.rgb(91, 105, 128));

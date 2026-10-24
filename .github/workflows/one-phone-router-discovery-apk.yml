@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out isolated development branch
         uses: actions/checkout@v4
+      - name: Validate remote router gateway installer syntax
+        run: bash -n scripts/dream-wifi-router-gateway-install.sh
       - name: Set up Java
         uses: actions/setup-java@v4
         with:

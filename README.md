@@ -5,7 +5,7 @@ Standalone Dream Wi-Fi / Dream Tunnel service, separate from Dream Education. Pr
 **Public release status: BLOCKED.** The backend CI tests and Android debug APK build have passed, but durable production storage, a production-aligned deployment, and physical-device end-to-end acceptance remain incomplete. See [Public Release Gate](docs/PUBLIC-RELEASE-GATE.md) for the mandatory evidence checklist. Do not publish the debug APK or advertise unrestricted internet/hotspot support as production-ready.
 
 ## Wi-Fi discovery
-- The web app requests the visitor's location and searches a radius up to 300 km.
+- The web app requests the visitor's location and searches a radius up to 500 km.
 - **Public Wi-Fi locations:** queries OpenStreetMap for mapped venues explicitly tagged as offering Wi-Fi, with a short server-side cache and a fallback Overpass endpoint.
 - **Participating Dream Wi-Fi sources:** lists source devices that have opted in, reported coordinates, and connected to Dream Wi-Fi.
 - Public map entries are not live-verified; they may be closed, paid, password-protected, or inaccurately mapped. This is not a directory of every private router or SSID.

@@ -510,7 +510,7 @@ starts here.", 29, 0xffffffff, true);
                 status.setText("Location permission was denied. Nearby scan and 500 km search may be restricted by Android.");
             }
         } else if (requestCode == 413) {
-            Toast.makeText(this, hasLocationPermission() ? "Permission updated. Tap Connect again." : "Wi-Fi connection permission was not granted.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED ? "Permission updated. Tap Connect again." : "Wi-Fi connection permission was not granted.", Toast.LENGTH_LONG).show();
         }
     }
 

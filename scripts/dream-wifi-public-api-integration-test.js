@@ -104,7 +104,7 @@ async function main() {
     const pageResponse = await fetch(base + "/");
     assert.equal(pageResponse.status, 200);
     const page = await pageResponse.text();
-    assert.match(page, /Internet, <em>without the distance\\./);
+    assert.match(page, /Internet, <em>without the distance/);
     assert.match(page, /src="\/app\.js"/);
 
     console.log("Dream Wi-Fi public API integration test passed (startup, health, public config, location validation, source directory, hotspot route, and page delivery).");

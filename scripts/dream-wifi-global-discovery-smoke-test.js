@@ -14,6 +14,12 @@ assert.match(server, /slice\(0, 200\)/, "Source response must remain capped to p
 assert.match(page, /Scan physical Wi-Fi/);
 assert.match(page, /Participating Dream Wi-Fi sources/);
 assert.match(page, /Mapped public Wi-Fi places/);
+const landing = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
+assert.match(landing, /Find a connection/);
+assert.match(landing, /Open discovery/);
+assert.match(landing, /Receive internet/);
+assert.match(landing, /Share internet/);
+assert.doesNotMatch(landing, /id="hotspots"/, "Landing page should stay simple and direct users to the discovery page.");
 assert.match(js, /radius = selected === "world" \? 20040/);
 assert.match(js, /requestLocalWifiScan/);
 assert.match(js, /openWifiSettings/);

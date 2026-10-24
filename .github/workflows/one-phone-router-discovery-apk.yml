@@ -2,7 +2,7 @@ name: One-phone router discovery APK
 on:
   push:
     branches:
-      - idea/500km-one-phone-router-discovery
+      - idea/one-phone-router-discovery-clean
     paths:
       - "android/dream-wifi-vpn/**"
       - ".github/workflows/one-phone-router-discovery-apk.yml"

@@ -145,9 +145,9 @@ async function checkSourceInternet() {
           finish(false, "https_probe_response_too_large");
           return;
         }
-        const headerEnd = response.indexOf("\\r\\n\\r\\n");
+        const headerEnd = response.indexOf("\r\n\r\n");
         if (headerEnd < 0) return;
-        const statusLine = response.slice(0, headerEnd).split("\\r\\n", 1)[0];
+        const statusLine = response.slice(0, headerEnd).split("\r\n", 1)[0];
         if (/^HTTP\/1\.[01] 200(?: |$)/.test(statusLine)) finish(true, null);
         else finish(false, "https_probe_" + (statusLine.match(/^HTTP\/1\.[01] (\d{3})/) || [])[1] || "invalid_response");
       });

@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.location.Location;
 import android.location.LocationManager;
 import android.graphics.Color;
@@ -164,7 +163,7 @@ public final class MainActivity extends Activity {
         Button publishSourceButton = makeButton("Start sharing this network", blue, navy);
         publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
         sourceCard.addView(publishSourceButton, fullWidth());
-        sourceButton = makeButton("Choose source (automatic)", Color.parseColor("#1A3551"), Color.WHITE);
+        sourceButton = makeButton("Choose Wi-Fi source (automatic)", Color.parseColor("#1A3551"), Color.WHITE);
         sourceButton.setOnClickListener(v -> showSourcePicker());
         addWithTopMargin(sourceCard, sourceButton, 10);
         page.addView(sourceCard, cardParams());

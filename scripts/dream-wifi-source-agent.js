@@ -47,6 +47,7 @@ let socket = null;
 let reconnectTimer = null;
 let heartbeatTimer = null;
 let healthTimer = null;
+let pairingRefreshTimer = null;
 let reconnectDelayMs = 5000;
 
 async function detectSourceName() {
@@ -267,6 +268,14 @@ function connect() {
       if (healthTimer) clearInterval(healthTimer);
       checkSourceInternet();
       healthTimer = setInterval(checkSourceInternet, 60000);
+      if (pairingRefreshTimer) clearInterval(pairingRefreshTimer);
+      pairingRefreshTimer = setInterval(() => {
+        if (currentSocket.readyState === WebSocket.OPEN) {
+          currentSocket.send(JSON.stringify({ type: "request-pairing-code" }));
+        }
+      }, 8 * 60 * 1000);
+    } else if (message.type === "pairing-code-rate-limited") {
+      console.log("Pairing code refresh rate-limited by server; a new code will be requested on the next refresh cycle.");
     } else if (message.type === "pairing-code" && typeof message.code === "string") {
       console.log("\\nDream Wi-Fi receiver pairing code: " + message.code);
       console.log("Give this code only to the receiver you authorize. It expires in " + Math.ceil(Number(message.expiresInSeconds || 600) / 60) + " minutes and can be used once.\\n");
@@ -300,8 +309,10 @@ function connect() {
     if (socket !== currentSocket) return;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (healthTimer) clearInterval(healthTimer);
+    if (pairingRefreshTimer) clearInterval(pairingRefreshTimer);
     heartbeatTimer = null;
     healthTimer = null;
+    pairingRefreshTimer = null;
     pendingOpens.clear();
     for (const id of [...streams.keys()]) closeStream(id, false);
     for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
@@ -329,8 +340,10 @@ function shutdown() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (healthTimer) clearInterval(healthTimer);
+  if (pairingRefreshTimer) clearInterval(pairingRefreshTimer);
   heartbeatTimer = null;
   healthTimer = null;
+  pairingRefreshTimer = null;
   for (const id of [...streams.keys()]) closeStream(id, false);
   for (const key of [...udpSockets.keys()]) closeUdpFlow(key);
   if (socket) socket.close();

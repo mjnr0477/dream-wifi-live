@@ -16,7 +16,7 @@ Dream Wi-Fi can carry a receiver phone's supported TCP/UDP traffic through an **
 
    Replace the sample coordinates with the gateway's real location. Coordinates are optional; without them the gateway can still relay traffic, but it will not be geographically discoverable.
 3. The installer checks that the live backend allows durable enrollment, creates a source-scoped credential, stores it in a root-owned file readable only by the dedicated service account, installs the source agent as a systemd service, and starts it. The secret is not printed. If enrollment is disabled, do not bypass the check; restore the server's durable storage configuration first.
-4. Check the gateway with `systemctl status dream-wifi-source.service` and `journalctl -u dream-wifi-source.service -f`. The source must report authenticated/online and have a successful source-side internet probe.
+4. Check the gateway with `systemctl status dream-wifi-source.service` and `journalctl -u dream-wifi-source.service -f`. The source must report authenticated/online and have a successful source-side internet probe. The agent requests a fresh one-time pairing code every eight minutes while connected; read the latest code from the service logs and share it only with the receiver you authorize.
 5. On the receiver phone, open Dream Wi-Fi, choose **Receive internet**, enter the fresh one-time pairing code supplied by the authorized source owner, approve Android's VPN request, and test HTTPS. The code expires after 10 minutes and is single-use. Re-pair after the receiver session expires or a backend restart.
 6. To stop sharing, run `sudo systemctl disable --now dream-wifi-source.service` on the gateway.
 

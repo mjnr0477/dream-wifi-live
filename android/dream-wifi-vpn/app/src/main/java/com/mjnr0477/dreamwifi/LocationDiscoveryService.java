@@ -148,32 +148,20 @@ public final class LocationDiscoveryService extends Service {
 
     private void queryDiscovery(Location location) {
         worker.execute(() -> {
-            int sources = -1;
-            int online = -1;
             int places = -1;
-            try {
-                JSONObject sourceResult = getJson("/api/wifi/sources?latitude=" + location.getLatitude()
-                        + "&longitude=" + location.getLongitude() + "&radius_km=500");
-                if (sourceResult.optBoolean("success", false)) {
-                    sources = sourceResult.optInt("count", 0);
-                    online = sourceResult.optInt("online_count", 0);
-                }
-            } catch (Exception ignored) { }
             try {
                 JSONObject hotspotResult = getJson("/api/wifi/hotspots?latitude=" + location.getLatitude()
                         + "&longitude=" + location.getLongitude() + "&radius_km=500");
                 if (hotspotResult.optBoolean("success", false)) places = hotspotResult.optInt("count", 0);
             } catch (Exception ignored) { }
 
-            if (sources < 0 && places < 0) {
-                lastSummary = "server unavailable";
-                updateNotification("Automatic discovery is running · network lookup unavailable; will retry.");
+            if (places < 0) {
+                lastSummary = "map unavailable";
+                updateNotification("Background discovery is running · mapped Wi-Fi lookup unavailable; will retry.");
                 return;
             }
-            String sourceText = sources < 0 ? "sources unavailable" : sources + " registered sources (" + online + " online)";
-            String placeText = places < 0 ? "map unavailable" : places + " mapped Wi-Fi places";
-            lastSummary = sourceText + " · " + placeText;
-            updateNotification("500 km discovery updated · " + lastSummary);
+            lastSummary = places + " mapped Wi-Fi places within 500 km";
+            updateNotification("Location updated · " + lastSummary + " (not live-verified)");
         });
     }
 

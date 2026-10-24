@@ -92,32 +92,6 @@ async function main() {
       ready: true,
       checkedAt: new Date().toISOString()
     }));
-    const healthySourceList = await new Promise(async (resolve, reject) => {
-      const probe = connect(url);
-      try {
-        await waitOpen(probe);
-        probe.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
-        await probe.next(m => m.type === "registered" && m.role === "client", "health probe client registration");
-        const list = await probe.next(m => m.type === "source-list", "healthy source list");
-        resolve(list);
-      } catch (error) { reject(error); }
-      finally { try { probe.socket.close(); } catch (_) {} }
-    });
-    assert.equal(healthySourceList.sources[0].internetReady, true,
-      "An online gateway with a fresh successful health probe must be marked internet-ready.");
-
-    source.socket.send(JSON.stringify({
-      type: "source-health",
-      ready: false,
-      error: "integration_test_no_internet"
-    }));
-    // The source-health signal must be reflected in a fresh source listing, not cached as ready.
-    const healthProbe = connect(url);
-    try {
-      await waitOpen(healthProbe);
-      healthProbe.socket.send(JSON.stringify({ type: "register", role: "owner", pairingCode: pairing.code }));
-      await healthProbe.next(m => m.type === "registered" && m.role === "client", "second health probe registration");
-    } finally { try { healthProbe.socket.close(); } catch (_) {} }
 
     await rejectedPairing(url, "NOT-A-VALID-CODE", "invalid pairing code rejection");
 
@@ -138,6 +112,20 @@ async function main() {
     const accessToken = ownerRegistration.accessToken;
     const sourceList = await owner.next(m => m.type === "source-list", "owner source list");
     assert.deepEqual(sourceList.sources.map(item => item.id), ["integration-source"], "Paired receiver should only see its authorized source.");
+    assert.equal(sourceList.sources[0].internetReady, true,
+      "A fresh successful gateway health probe must be reported as internet-ready.");
+
+    source.socket.send(JSON.stringify({
+      type: "source-health",
+      ready: false,
+      error: "integration_test_no_internet"
+    }));
+    const unhealthySourceList = await owner.next(
+      m => m.type === "source-list" && m.sources.some(item => item.id === "integration-source" && item.internetReady === false),
+      "updated source list after gateway internet failure"
+    );
+    assert.equal(unhealthySourceList.sources[0].internetReady, false,
+      "A failed gateway health probe must remove the internet-ready status.");
 
     await rejectedPairing(url, pairing.code, "one-time pairing code reuse rejection");
 

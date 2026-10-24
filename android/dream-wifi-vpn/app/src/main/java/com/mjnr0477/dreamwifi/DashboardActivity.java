@@ -27,8 +27,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public final class DashboardActivity extends Activity {
-    private static final String DASHBOARD_URL = "https://dream-wifi-live.onrender.com/discovery.html";
-    private static final String DASHBOARD_HOST = "dream-wifi-live.onrender.com";
+    private String dashboardUrl;
+    private String dashboardHost;
     private WebView webView;
     private ProgressBar progressBar;
     private static final int LOCATION_PERMISSION_REQUEST = 7402;
@@ -38,6 +38,18 @@ public final class DashboardActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        String configuredBaseUrl = String.valueOf(BuildConfig.DREAM_WIFI_BASE_URL).trim();
+        while (configuredBaseUrl.endsWith("/")) {
+            configuredBaseUrl = configuredBaseUrl.substring(0, configuredBaseUrl.length() - 1);
+        }
+        Uri configuredUri = Uri.parse(configuredBaseUrl);
+        if ("https".equalsIgnoreCase(configuredUri.getScheme())
+                && configuredUri.getHost() != null
+                && !configuredUri.getHost().trim().isEmpty()) {
+            dashboardHost = configuredUri.getHost();
+            dashboardUrl = configuredBaseUrl + "/discovery.html";
+        }
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -74,7 +86,7 @@ public final class DashboardActivity extends Activity {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                 Uri requestedOrigin = Uri.parse(origin);
                 if (!"https".equalsIgnoreCase(requestedOrigin.getScheme())
-                        || !DASHBOARD_HOST.equalsIgnoreCase(requestedOrigin.getHost())) {
+                        || (dashboardHost == null || !dashboardHost.equalsIgnoreCase(requestedOrigin.getHost()))) {
                     callback.invoke(origin, false, false);
                     return;
                 }
@@ -119,11 +131,22 @@ public final class DashboardActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(root);
 
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState);
-        }
-        if (webView.getUrl() == null) {
-            webView.loadUrl(DASHBOARD_URL);
+        if (dashboardUrl == null) {
+            progressBar.setVisibility(View.GONE);
+            webView.setVisibility(View.GONE);
+            TextView setupNotice = new TextView(this);
+            setupNotice.setText("Development workspace\\n\\nThis build is intentionally not connected to the published Dream Wi-Fi service. Configure DREAM_WIFI_BASE_URL with a separate development backend, then rebuild to enable discovery and pairing.");
+            setupNotice.setTextSize(16);
+            setupNotice.setPadding(24, 32, 24, 24);
+            root.addView(setupNotice, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        } else {
+            if (savedInstanceState != null) {
+                webView.restoreState(savedInstanceState);
+            }
+            if (webView.getUrl() == null) {
+                webView.loadUrl(dashboardUrl);
+            }
         }
     }
 
@@ -212,8 +235,8 @@ public final class DashboardActivity extends Activity {
     }
 
     private boolean routeUrl(Uri uri) {
-        if ("https".equalsIgnoreCase(uri.getScheme())
-                && DASHBOARD_HOST.equalsIgnoreCase(uri.getHost())) {
+        if (dashboardHost != null && "https".equalsIgnoreCase(uri.getScheme())
+                && dashboardHost.equalsIgnoreCase(uri.getHost())) {
             return false;
         }
         try {

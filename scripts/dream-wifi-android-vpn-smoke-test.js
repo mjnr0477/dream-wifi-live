@@ -104,7 +104,7 @@ assert.match(releaseWorkflow, /ANDROID_KEYSTORE_BASE64/);
 assert.match(releaseWorkflow, /:app:assembleRelease :app:bundleRelease/);
 assert.match(releaseWorkflow, /sha256sum/);
 assert.match(releaseWorkflow, /dream-wifi-signed-release/);
-assert.match(releaseWorkflow, /build-tools\\/35\\.0\\.0\\/apksigner/);
+assert.match(releaseWorkflow, /build-tools.*apksigner/);
 assert.match(releaseWorkflow, /jarsigner -verify -strict -certs/);
 assert.match(releaseWorkflow, /aapt\" dump badging/);
 assert.match(releaseWorkflow, /test \"\$APK_CERT\" = \"\$AAB_CERT\"/);

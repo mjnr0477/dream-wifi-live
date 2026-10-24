@@ -13,6 +13,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSuggestion;
@@ -272,7 +273,7 @@ starts here.", 29, 0xffffffff, true);
                             String placeName = p.optString("name", "Wi-Fi place");
                             String distance = p.optString("distance_km", "?");
                             String kind = p.optString("venue_type", "Mapped Wi-Fi venue");
-                            addMapPlace(placeName, distance, kind);
+                            addMapPlace(placeName, distance, kind, p.optString("map_url", ""));
                             mapCount++;
                         }
                     }
@@ -344,7 +345,7 @@ starts here.", 29, 0xffffffff, true);
         }
     }
 
-    private void addMapPlace(String name, String distance, String kind) {
+    private void addMapPlace(String name, String distance, String kind, String mapUrl) {
         LinearLayout card = card();
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -363,6 +364,16 @@ starts here.", 29, 0xffffffff, true);
         TextView explanation = text("This listing has no live router signal or credentials. Visit the venue and use its Wi-Fi details to connect.", 12, 0xff63728a, false);
         explanation.setPadding(0, dp(11), 0, 0);
         card.addView(explanation);
+        if (mapUrl.startsWith("https://www.openstreetmap.org/")) {
+            Button directions = smallButton("VIEW PLACE ON MAP");
+            directions.setOnClickListener(v -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(mapUrl))); }
+                catch (Exception e) { Toast.makeText(this, "No map app is available to open this place.", Toast.LENGTH_LONG).show(); }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(42));
+            lp.topMargin = dp(12);
+            card.addView(directions, lp);
+        }
         results.addView(card);
     }
 

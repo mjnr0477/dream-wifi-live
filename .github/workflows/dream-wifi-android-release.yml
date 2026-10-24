@@ -62,8 +62,28 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="$DREAM_WIFI_BASE_URL" :app:assembleRelease :app:bundleRelease
+      - name: Verify APK and AAB signatures and package identity
+        run: |
+          set -euo pipefail
+          APK=android/dream-wifi-vpn/app/build/outputs/apk/release/app-release.apk
+          AAB=android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab
+          test -s "$APK"
+          test -s "$AAB"
+          # Fail closed: never publish an unsigned or unverifiable release artifact.
+          apksigner verify --verbose --print-certs "$APK"
+          jarsigner -verify -strict -certs "$AAB"
+          aapt dump badging "$APK" | grep -F "package: name='com.mjnr0477.dreamwifi' versionCode='1' versionName='0.1.0'"
+          # Ensure the APK and AAB use the same release certificate.
+          APK_CERT="$(apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          AAB_CERT="$(keytool -printcert -jarfile "$AAB" | sed -n 's/^ *SHA256: //p' | head -n 1 | tr -d ':')"
+          APK_CERT="$(printf '%s' "$APK_CERT" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
+          AAB_CERT="$(printf '%s' "$AAB_CERT" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
+          test -n "$APK_CERT"
+          test -n "$AAB_CERT"
+          test "$APK_CERT" = "$AAB_CERT"
       - name: Generate release checksums
         run: |
+          set -euo pipefail
           sha256sum \
             android/dream-wifi-vpn/app/build/outputs/apk/release/app-release.apk \
             android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab \

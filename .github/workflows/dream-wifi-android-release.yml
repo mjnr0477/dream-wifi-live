@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}
+      DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_DEV_BASE_URL || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Run Android architecture and credential-storage smoke test

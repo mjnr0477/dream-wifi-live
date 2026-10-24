@@ -85,7 +85,7 @@ function verifyHttps(endpoint, id, host, requestPath, validateBody) {
     secure.setTimeout(timeout, () => finish(new Error("HTTPS timed out through the remote router.")));
     secure.once("secureConnect", () => {
       if (!secure.authorized) return finish(new Error("TLS certificate validation failed."));
-      secure.write("GET " + requestPath + " HTTP/1.1\\r\\nHost: " + host + "\\r\\nConnection: close\\r\\nUser-Agent: Dream-WiFi-Remote-Router-Acceptance/1.0\\r\\nAccept: text/plain, text/html\\r\\n\\r\\n");
+      secure.write("GET " + requestPath + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\nUser-Agent: Dream-WiFi-Remote-Router-Acceptance/1.0\r\nAccept: text/plain, text/html\r\n\r\n");
     });
     secure.on("data", part => {
       response += part.toString("latin1");
@@ -127,7 +127,7 @@ async function main() {
     console.log("PASS: TLS certificate verified; example.com returned",result.status);
     console.log("PASS:",result.bytes,"response bytes traversed the tunnel.");
     const ipResult = await verifyHttps(endpoint,streamId + "-egress","api.ipify.org","/",body => {
-      assert.match(body,/^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$/,"Remote egress check did not return an IPv4 address.");
+      assert.match(body,/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/,"Remote egress check did not return an IPv4 address.");
       const octets = body.split(".").map(Number);
       assert.ok(octets.every(n => n >= 0 && n <= 255),"Remote egress IP is malformed.");
     });

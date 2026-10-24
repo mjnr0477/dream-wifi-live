@@ -97,7 +97,7 @@ public final class RouterDiscoveryActivity extends Activity {
 
         TextView eyebrow = text("SMART WI-FI FINDER", 11, 0xffd8e7ff, true);
         hero.addView(eyebrow);
-        TextView headline = text("Your next connection\\nstarts here.", 29, 0xffffffff, true);
+        TextView headline = text("Your next connection\nstarts here.", 29, 0xffffffff, true);
         headline.setPadding(0, dp(10), 0, dp(8));
         hero.addView(headline);
         TextView description = text("Scan real Wi-Fi signals nearby and explore mapped Wi-Fi places up to 500 km away.", 14, 0xffe4edff, false);

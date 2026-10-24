@@ -123,7 +123,7 @@
               unavailable: "Wi-Fi connection suggestions are unavailable on this device."
             };
             $("status").textContent = messages[result.status] || "Android could not suggest this network. Open Wi-Fi settings to connect manually.";
-            if (result.status !== "suggested" && result.status !== "already_suggested") native.openWifiSettings();
+            if (result.status === "settings_required" || result.status === "unavailable" || result.status === "invalid_ssid") native.openWifiSettings();
           } catch (_) {
             $("status").textContent = "Could not request the connection. Open Android Wi-Fi settings to connect.";
             native.openWifiSettings();

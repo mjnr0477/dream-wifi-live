@@ -1,7 +1,7 @@
 name: Dream Wi-Fi verification
 on:
   push:
-    branches: [main, work/requirements-baseline-audit]
+    branches: [main, work/requirements-baseline-audit, idea/500km-one-phone-router-discovery]
   pull_request:
     branches: [main]
 jobs:

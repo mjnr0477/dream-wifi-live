@@ -20,6 +20,7 @@ fail() { printf 'Dream Wi-Fi gateway setup failed: %s\n' "$*" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || fail "curl is required."
 command -v git >/dev/null 2>&1 || fail "git is required."
 command -v node >/dev/null 2>&1 || fail "Node.js is required (18 or newer)."
+NODE_BIN="$(command -v node)"
 command -v npm >/dev/null 2>&1 || fail "npm is required."
 command -v python3 >/dev/null 2>&1 || fail "python3 is required."
 command -v systemctl >/dev/null 2>&1 || fail "systemd is required; this installer targets Debian/Ubuntu/Raspberry Pi OS or another systemd Linux host."
@@ -92,7 +93,7 @@ User=dreamwifi
 Group=dreamwifi
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/node $INSTALL_DIR/scripts/dream-wifi-source-agent.js
+ExecStart=$NODE_BIN $INSTALL_DIR/scripts/dream-wifi-source-agent.js
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

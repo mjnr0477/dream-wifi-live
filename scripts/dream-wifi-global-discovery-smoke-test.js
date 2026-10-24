@@ -11,7 +11,7 @@ const manifest = fs.readFileSync(path.join(root, "android/dream-wifi-vpn/app/src
 assert.match(server, /radiusKm > 20040/, "Participating source search must support worldwide radius.");
 assert.match(server, /Worldwide search covers the registered Dream Wi-Fi source directory only/, "Worldwide search must explain that it is not a global router scanner.");
 assert.match(server, /slice\(0, 200\)/, "Source response must remain capped to protect the API.");
-assert.match(page, /Physical Wi-Fi/);
+assert.match(page, /Scan physical Wi-Fi/);
 assert.match(page, /Participating Dream Wi-Fi sources/);
 assert.match(page, /Mapped public Wi-Fi places/);
 assert.match(js, /radius = selected === "world" \? 20040/);

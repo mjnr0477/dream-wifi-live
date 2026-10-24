@@ -44,6 +44,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final int VPN_PERMISSION_REQUEST = 1001;
     private static final int SOURCE_LOCATION_REQUEST = 1002;
+    private static final int DISCOVERY_LOCATION_REQUEST = 1003;
     static final String ACTION_STATUS = "com.mjnr0477.dreamwifi.STATUS";
     private final ExecutorService authWorker = Executors.newSingleThreadExecutor();
     private EditText pairingCodeInput;
@@ -247,6 +248,8 @@ public final class MainActivity extends Activity {
         setContentView(homeScrollView);
         refreshNetworkInfo();
 
+        ensureAutomaticDiscovery();
+
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
             pendingAccessToken = savedReceiver.accessToken;
@@ -256,6 +259,47 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean hasDiscoveryLocationPermission() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void ensureAutomaticDiscovery() {
+        if (!hasDiscoveryLocationPermission()) {
+            requestPermissions(new String[] { Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION }, DISCOVERY_LOCATION_REQUEST);
+            return;
+        }
+        startAutomaticDiscoveryService();
+        promptForBackgroundLocationIfNeeded();
+    }
+
+    private void startAutomaticDiscoveryService() {
+        Intent intent = new Intent(this, LocationDiscoveryService.class);
+        intent.setAction(LocationDiscoveryService.ACTION_START);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+            else startService(intent);
+        } catch (Exception error) {
+            if (status != null) status.setText("Automatic discovery could not start. Open the app and try again.");
+        }
+    }
+
+    private void promptForBackgroundLocationIfNeeded() {
+        if (Build.VERSION.SDK_INT < 29 || checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) return;
+        android.content.SharedPreferences prefs = getSharedPreferences("dream_wifi_location_discovery", MODE_PRIVATE);
+        if (prefs.getBoolean("background_permission_prompted", false)) return;
+        prefs.edit().putBoolean("background_permission_prompted", true).apply();
+        new AlertDialog.Builder(this)
+                .setTitle("Keep discovery running")
+                .setMessage("Dream Wi-Fi can update mapped sources while you travel. For the most reliable background updates, open App permissions and choose Location → Allow all the time. Android may still limit background work to protect battery.")
+                .setPositiveButton("Open app settings", (dialog, which) -> {
+                    Intent settings = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:" + getPackageName()));
+                    startActivity(settings);
+                })
+                .setNegativeButton("Later", null)
+                .show();
+    }
     private void styleActionButton(Button button, int backgroundColor, int textColor) {
         button.setAllCaps(false);
         button.setTextSize(16);
@@ -586,7 +630,15 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == SOURCE_LOCATION_REQUEST) {
+        if (requestCode == DISCOVERY_LOCATION_REQUEST) {
+            if (hasDiscoveryLocationPermission()) {
+                startAutomaticDiscoveryService();
+                promptForBackgroundLocationIfNeeded();
+                if (status != null) status.setText("Automatic discovery started. Keep Dream Wi-Fi enabled in the background to refresh your 500 km search.");
+            } else if (status != null) {
+                status.setText("Location permission is needed for automatic discovery. You can allow it later in Android settings.");
+            }
+        } else if (requestCode == SOURCE_LOCATION_REQUEST) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Location location = getApproximateLocation();
                 pendingSourceLatitude = location == null ? null : location.getLatitude();

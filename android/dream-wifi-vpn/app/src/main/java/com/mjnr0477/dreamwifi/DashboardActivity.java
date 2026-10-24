@@ -1,6 +1,10 @@
 package com.mjnr0477.dreamwifi;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.GeolocationPermissions;
+import android.webkit.WebChromeClient;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -22,6 +26,9 @@ public final class DashboardActivity extends Activity {
     private static final String DASHBOARD_HOST = "dream-wifi-live.onrender.com";
     private WebView webView;
     private ProgressBar progressBar;
+    private static final int LOCATION_PERMISSION_REQUEST = 7402;
+    private GeolocationPermissions.Callback pendingLocationCallback;
+    private String pendingLocationOrigin;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +64,26 @@ public final class DashboardActivity extends Activity {
         webView = new WebView(this);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setGeolocationEnabled(true);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                Uri requestedOrigin = Uri.parse(origin);
+                if (!"https".equalsIgnoreCase(requestedOrigin.getScheme())
+                        || !DASHBOARD_HOST.equalsIgnoreCase(requestedOrigin.getHost())) {
+                    callback.invoke(origin, false, false);
+                    return;
+                }
+                boolean fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                boolean coarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                if (fine || coarse) callback.invoke(origin, true, false);
+                else {
+                    pendingLocationOrigin = origin;
+                    pendingLocationCallback = callback;
+                    requestPermissions(new String[] { Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION },
+                            LOCATION_PERMISSION_REQUEST);
+                }
+            }
+        });
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -130,6 +157,17 @@ public final class DashboardActivity extends Activity {
             Toast.makeText(this, "Unable to open that link.", Toast.LENGTH_SHORT).show();
         }
         return true;
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST && pendingLocationCallback != null) {
+            boolean granted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            pendingLocationCallback.invoke(pendingLocationOrigin, granted, false);
+            pendingLocationCallback = null;
+            pendingLocationOrigin = null;
+        }
     }
 
     @Override

@@ -91,10 +91,11 @@ async function main() {
     const invalidRadius = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=501");
     assert.equal(invalidRadius.status, 400);
 
-    const hotspotResponse = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=25");
+    const hotspotResponse = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=500");
     assert.equal(hotspotResponse.status, 200);
     const hotspots = await hotspotResponse.json();
     assert.equal(hotspots.success, true);
+    assert.equal(hotspots.radius_km, 500);
     assert.equal(hotspots.provider, "OpenStreetMap");
     assert.equal(hotspots.count, 1);
     assert.equal(hotspots.hotspots[0].name, "Integration Test Library");
@@ -103,7 +104,7 @@ async function main() {
     const pageResponse = await fetch(base + "/");
     assert.equal(pageResponse.status, 200);
     const page = await pageResponse.text();
-    assert.match(page, /Find Wi-Fi around you/);
+    assert.match(page, /Internet, <em>without the distance\\./);
     assert.match(page, /src="\/app\.js"/);
 
     console.log("Dream Wi-Fi public API integration test passed (startup, health, public config, location validation, source directory, hotspot route, and page delivery).");

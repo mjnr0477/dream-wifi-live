@@ -119,22 +119,39 @@ public final class MainActivity extends Activity {
         intro.setPadding(0, 10, 0, 24);
         box.addView(intro, new LinearLayout.LayoutParams(-1, -2));
 
+        TextView connectionArt = new TextView(this);
+        connectionArt.setText("👩🏽‍💻   ···   🌍   ···   👨🏿‍💻");
+        connectionArt.setTextSize(25);
+        connectionArt.setGravity(Gravity.CENTER);
+        connectionArt.setPadding(8, 18, 8, 18);
+        connectionArt.setBackground(rounded(android.graphics.Color.rgb(226, 237, 255), 22));
+        box.addView(connectionArt, fullWidthButton());
+
+        TextView artCaption = new TextView(this);
+        artCaption.setText("Connect people across town or across the world.");
+        artCaption.setTextSize(13);
+        artCaption.setGravity(Gravity.CENTER);
+        artCaption.setTextColor(android.graphics.Color.rgb(91, 105, 128));
+        artCaption.setPadding(0, 2, 0, 10);
+        box.addView(artCaption, new LinearLayout.LayoutParams(-1, -2));
+
         Button findButton = new Button(this);
         findButton.setText("Find Wi-Fi nearby");
+        styleActionButton(findButton, android.graphics.Color.WHITE, android.graphics.Color.rgb(21, 75, 170));
         findButton.setOnClickListener(v ->
                 startActivity(new Intent(this, DashboardActivity.class)));
         box.addView(findButton, fullWidthButton());
 
         Button receiveButton = new Button(this);
         receiveButton.setText("Receive internet");
+        styleActionButton(receiveButton, android.graphics.Color.WHITE, android.graphics.Color.rgb(21, 75, 170));
         receiveButton.setOnClickListener(v -> showReceiveDialog());
         box.addView(receiveButton, fullWidthButton());
 
         Button shareButton = new Button(this);
         shareButton.setText("Share internet");
         shareButton.setOnClickListener(v -> enrollAndStartSource());
-        shareButton.setTextColor(android.graphics.Color.WHITE);
-        shareButton.setBackground(rounded(android.graphics.Color.rgb(21, 94, 239), 18));
+        styleActionButton(shareButton, android.graphics.Color.rgb(21, 94, 239), android.graphics.Color.WHITE);
         box.addView(shareButton, fullWidthButton());
 
         pairingCard = new LinearLayout(this);
@@ -231,6 +248,15 @@ public final class MainActivity extends Activity {
             selectedSourceId = savedReceiver.sourceId;
             status.setText("A saved receiver connection is available. Tap Receive internet to resume.");
         }
+    }
+
+    private void styleActionButton(Button button, int backgroundColor, int textColor) {
+        button.setAllCaps(false);
+        button.setTextSize(16);
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setTextColor(textColor);
+        button.setBackground(rounded(backgroundColor, 18));
+        button.setElevation(2f);
     }
 
     private android.graphics.drawable.GradientDrawable rounded(int color, int radiusDp) {

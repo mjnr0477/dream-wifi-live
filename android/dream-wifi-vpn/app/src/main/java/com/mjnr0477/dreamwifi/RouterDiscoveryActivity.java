@@ -331,16 +331,109 @@ public final class RouterDiscoveryActivity extends Activity {
                             mapCount++;
                         }
                     }
-                    finishScan("Scan finished. Nearby radio results show real signals; mapped places are unverified listings, not live router connections.");
+                    fetchParticipatingSources(location);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     addSectionHeader("Wi-Fi places within 500 km");
                     addInfoCard("Map search unavailable", "Could not load mapped places right now. Nearby Wi-Fi scan results remain available. Check internet and scan again.", "RETRY SCAN", this::scanEverything);
-                    finishScan("Nearby scan finished. Map lookup failed.");
+                    fetchParticipatingSources(location);
                 });
             } finally { if (connection != null) connection.disconnect(); }
         });
+    }
+
+    private void fetchParticipatingSources(Location location) {
+        worker.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                String base = String.valueOf(BuildConfig.DREAM_WIFI_BASE_URL).trim();
+                while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+                String endpoint = base + "/api/wifi/sources?latitude=" + location.getLatitude()
+                        + "&longitude=" + location.getLongitude() + "&radius_km=500";
+                connection = (HttpURLConnection) new URL(endpoint).openConnection();
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(12000);
+                connection.setRequestProperty("Accept", "application/json");
+                int code = connection.getResponseCode();
+                InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
+                if (stream == null || code < 200 || code >= 300) throw new IllegalStateException("Gateway directory HTTP " + code);
+                StringBuilder body = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null && body.length() < 1024 * 1024) body.append(line);
+                }
+                JSONObject data = new JSONObject(body.toString());
+                JSONArray sources = data.optJSONArray("sources");
+                runOnUiThread(() -> {
+                    addSectionHeader("Live Dream Wi-Fi gateways within 500 km");
+                    int shown = 0;
+                    if (sources != null) {
+                        for (int i = 0; i < sources.length(); i++) {
+                            JSONObject source = sources.optJSONObject(i);
+                            if (source == null) continue;
+                            boolean online = source.optBoolean("connected", false);
+                            boolean internetReady = source.optBoolean("internet_ready", false);
+                            addParticipatingSource(
+                                    source.optString("name", "Dream Wi-Fi gateway"),
+                                    source.optString("distance_km", "?"),
+                                    online,
+                                    internetReady
+                            );
+                            shown++;
+                        }
+                    }
+                    if (shown == 0) {
+                        addInfoCard("No registered gateways found", "There are no registered Dream Wi-Fi gateways listed within 500 km right now. Nearby Wi-Fi signals and map listings are separate; a remote connection requires an authorized gateway that is online.", null, null);
+                    }
+                    finishScan("Scan finished. Nearby Wi-Fi is ranked by measured radio strength. Remote gateways are shown only from the registered directory; their internet status is not a Wi-Fi signal-strength measurement.");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    addSectionHeader("Live Dream Wi-Fi gateways within 500 km");
+                    addInfoCard("Gateway directory unavailable", "Could not verify registered remote gateways. Map places are not proof of a connectable router. Try Scan again when internet is available.", null, null);
+                    finishScan("Nearby scan and mapped-place lookup finished; live gateway lookup failed.");
+                });
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void addParticipatingSource(String name, String distance, boolean online, boolean internetReady) {
+        LinearLayout card = card();
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView icon = text("⇄", 24, online && internetReady ? 0xff17805b : 0xff8a5b17, true);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(shape(online && internetReady ? 0xffe2f6ec : 0xfffff1d6, 15));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(12), 0, 0, 0);
+        info.addView(text(name, 15, 0xff172b50, true));
+        info.addView(text(distance + " km away · registered remote gateway", 12, 0xff63728a, false));
+        String state = !online ? "OFFLINE · CANNOT CONNECT NOW"
+                : internetReady ? "ONLINE · SOURCE INTERNET CHECK PASSED"
+                : "ONLINE · INTERNET NOT VERIFIED";
+        info.addView(text(state, 10, online && internetReady ? 0xff17805b : 0xff8a5b17, true));
+        row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(row);
+        TextView explanation = text("Remote traffic travels through the gateway, not through a Wi-Fi signal reaching this phone. Actual receiver browsing must still be tested.", 12, 0xff63728a, false);
+        explanation.setPadding(0, dp(10), 0, 0);
+        card.addView(explanation);
+        Button connect = smallButton(online && internetReady ? "CONNECT TO THIS GATEWAY" : "GATEWAY NOT READY");
+        connect.setEnabled(online && internetReady);
+        connect.setAlpha(online && internetReady ? 1f : 0.55f);
+        connect.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra("open_receive_dialog", true);
+            startActivity(intent);
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(44));
+        lp.topMargin = dp(12);
+        card.addView(connect, lp);
+        results.addView(card);
     }
 
     private void addLocalNetwork(String ssid, int rssi, String capabilities) {

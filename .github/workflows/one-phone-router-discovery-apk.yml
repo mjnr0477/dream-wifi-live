@@ -31,7 +31,16 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - name: Install required Android NDK
-        run: sdkmanager "ndk;27.2.12479018"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Fetch pinned upstream TUN-to-SOCKS engine
+        working-directory: android/dream-wifi-vpn/app
+        run: |
+          git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git
+          cd hev-socks5-tunnel
+          git checkout 9b2c2320b26046b307abd6ddb5f102b2ccd1d4a4
+          git submodule update --init --recursive
+          sed -i 's/#define PKGNAME hev\\/htproxy/#define PKGNAME com\\/mjnr0477\\/dreamwifi/' src/hev-jni.c
+          sed -i 's/#define CLSNAME TProxyService/#define CLSNAME DreamVpnService/' src/hev-jni.c
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

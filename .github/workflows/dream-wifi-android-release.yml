@@ -42,6 +42,7 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/dream-wifi-release.jks"
           test -s "$RUNNER_TEMP/dream-wifi-release.jks"
           chmod 600 "$RUNNER_TEMP/dream-wifi-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/dream-wifi-release.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
       - name: Fetch pinned upstream TUN-to-SOCKS engine
         working-directory: android/dream-wifi-vpn/app
         run: |
@@ -69,20 +70,23 @@ jobs:
           AAB=android/dream-wifi-vpn/app/build/outputs/bundle/release/app-release.aab
           test -s "$APK"
           test -s "$AAB"
-          # Fail closed: never publish an unsigned or unverifiable release artifact.
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          # Android release keystores normally use self-signed certificates; strict mode rejects those even when the AAB is correctly signed.
           jarsigner -verify -certs "$AAB"
           keytool -printcert -jarfile "$AAB" | grep -q "SHA256:"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.mjnr0477.dreamwifi' versionCode='1' versionName='0.1.0'"
-          # Ensure the APK and AAB use the same release certificate.
-          APK_CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
-          AAB_CERT="$(keytool -printcert -jarfile "$AAB" | sed -n 's/^ *SHA256: //p' | head -n 1 | tr -d ':')"
+          # Extract fingerprints without head pipelines, which can trigger SIGPIPE under pipefail.
+          APK_CERT="$( "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ { if (!found) { print $2; found=1 } } END { if (!found) exit 1 }' )"
+          AAB_CERT="$(keytool -printcert -jarfile "$AAB" | awk '/^[[:space:]]*SHA256:/ && !found { sub(/^[[:space:]]*SHA256:[[:space:]]*/, ""); print; found=1 } END { if (!found) exit 1 }' | tr -d ':')"
           APK_CERT="$(printf '%s' "$APK_CERT" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
           AAB_CERT="$(printf '%s' "$AAB_CERT" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
+          echo "APK signing certificate SHA-256: $APK_CERT"
+          echo "AAB signing certificate SHA-256: $AAB_CERT"
           test -n "$APK_CERT"
           test -n "$AAB_CERT"
-          test "$APK_CERT" = "$AAB_CERT"
+          if [ "$APK_CERT" != "$AAB_CERT" ]; then
+            echo "::error::The APK and AAB were signed with different certificates."
+            exit 1
+          fi
       - name: Generate release checksums
         run: |
           set -euo pipefail

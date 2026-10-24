@@ -170,9 +170,16 @@
       return;
     }
     $("scan-local").disabled = true;
-    $("local-results").textContent = "Scanning Wi-Fi networks visible to this phone…";
+    $("local-results").textContent = "Requesting an Android Wi-Fi scan… Android may return cached results first.";
     try {
-      const data = JSON.parse(native.requestLocalWifiScan());
+      let data = JSON.parse(native.requestLocalWifiScan());
+      // Android Wi-Fi scans are asynchronous. Re-read the platform results after
+      // the scan has had time to complete instead of treating cached results as final.
+      for (let attempt = 0; attempt < 2 && data.scan_started === true; attempt++) {
+        $("local-results").textContent = "Waiting for Android to refresh nearby Wi-Fi results… (" + (attempt + 1) + "/2)";
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        data = JSON.parse(native.requestLocalWifiScan());
+      }
       renderLocal(data);
     } catch (e) { $("local-results").textContent = "Could not scan Wi-Fi: " + e.message; }
     finally { $("scan-local").disabled = false; }

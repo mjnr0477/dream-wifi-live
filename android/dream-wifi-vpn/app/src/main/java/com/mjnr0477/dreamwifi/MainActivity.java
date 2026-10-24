@@ -4,8 +4,11 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.location.Location;
 import android.location.LocationManager;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -20,6 +23,7 @@ import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -78,93 +82,137 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(28, 32, 28, 24);
+        final int navy = Color.parseColor("#07111F");
+        final int panel = Color.parseColor("#10243A");
+        final int mint = Color.parseColor("#79F2C0");
+        final int blue = Color.parseColor("#86B8FF");
+        final int muted = Color.parseColor("#B7C7DC");
+        getWindow().setStatusBarColor(navy);
+        getWindow().setNavigationBarColor(navy);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(navy);
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(22), dp(24), dp(22), dp(28));
+
+        TextView brand = new TextView(this);
+        brand.setText("DREAM  WI-FI");
+        brand.setTextColor(mint);
+        brand.setTextSize(13);
+        brand.setLetterSpacing(0.14f);
+        brand.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        page.addView(brand, fullWidth());
 
         TextView title = new TextView(this);
-        title.setText("Dream Wi-Fi");
-        title.setTextSize(28);
-        title.setGravity(Gravity.CENTER);
-        box.addView(title);
+        title.setText("Internet, without\\nthe distance.");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(32);
+        title.setLineSpacing(dp(1), 1.0f);
+        title.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams titleParams = fullWidth();
+        titleParams.topMargin = dp(18);
+        page.addView(title, titleParams);
 
-        Button dashboardButton = new Button(this);
-        dashboardButton.setText("Open Dream Wi-Fi dashboard");
-        dashboardButton.setOnClickListener(v ->
-                startActivity(new Intent(this, DashboardActivity.class)));
-        box.addView(dashboardButton);
+        TextView intro = new TextView(this);
+        intro.setText("Discover Wi-Fi locations and participating internet sources. Dream Wi-Fi keeps the connection steps simple.");
+        intro.setTextColor(muted);
+        intro.setTextSize(15);
+        intro.setLineSpacing(dp(4), 1.0f);
+        LinearLayout.LayoutParams introParams = fullWidth();
+        introParams.topMargin = dp(10);
+        introParams.bottomMargin = dp(20);
+        page.addView(intro, introParams);
 
-        TextView note = new TextView(this);
-        note.setText("Standalone Dream Wi-Fi: enter the one-time pairing code supplied by the source owner to connect this phone through that source. Source publishing uses a separate enrollment step. Any provider captive portal or package/payment login must still be completed normally.");
-        note.setTextSize(15);
-        note.setPadding(0, 18, 0, 18);
-        box.addView(note);
+        TextView radiusChip = new TextView(this);
+        radiusChip.setText("⌖  SEARCH UP TO 500 KM  ·  FREE & PAID LISTINGS");
+        radiusChip.setTextColor(mint);
+        radiusChip.setTextSize(11);
+        radiusChip.setPadding(dp(12), dp(10), dp(12), dp(10));
+        radiusChip.setBackground(roundRect(Color.parseColor("#183B3A"), dp(14), Color.parseColor("#285A56")));
+        page.addView(radiusChip, fullWidth());
 
+        LinearLayout receiveCard = makeCard(panel);
+        addCardHeading(receiveCard, "Receive internet", "Enter a one-time code from a participating source to pair this phone.");
         pairingCodeInput = new EditText(this);
         pairingCodeInput.setSingleLine(true);
         pairingCodeInput.setHint("One-time source pairing code");
+        pairingCodeInput.setHintTextColor(Color.parseColor("#8397B0"));
+        pairingCodeInput.setTextColor(Color.WHITE);
         pairingCodeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        box.addView(pairingCodeInput, new LinearLayout.LayoutParams(-1, -2));
-
-        connectButton = new Button(this);
-        connectButton.setText("Pair and connect VPN");
+        pairingCodeInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+        pairingCodeInput.setBackground(roundRect(Color.parseColor("#09182A"), dp(13), Color.parseColor("#35516E")));
+        receiveCard.addView(pairingCodeInput, fullWidth());
+        connectButton = makeButton("Pair & connect", mint, navy);
         connectButton.setOnClickListener(v -> connectWithPairingCode());
-        box.addView(connectButton);
+        addWithTopMargin(receiveCard, connectButton, 12);
+        page.addView(receiveCard, cardParams());
 
-        Button publishSourceButton = new Button(this);
-        publishSourceButton.setText("Publish this Wi-Fi as a remote source");
+        LinearLayout sourceCard = makeCard(panel);
+        addCardHeading(sourceCard, "Share internet", "Offer a network you are authorized to share as a participating source.");
+        Button publishSourceButton = makeButton("Start sharing this network", blue, navy);
         publishSourceButton.setOnClickListener(v -> enrollAndStartSource());
-        box.addView(publishSourceButton);
-
-        Button revokePairingsButton = new Button(this);
-        revokePairingsButton.setText("Revoke all receiver pairings");
-        revokePairingsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, DreamVpnService.class);
-            intent.setAction(DreamVpnService.ACTION_REVOKE_PAIRINGS);
-            startService(intent);
-            status.setText("Requested receiver pairing revocation. Source sharing must be running for this to take effect.");
-        });
-        box.addView(revokePairingsButton);
-
-        sourceButton = new Button(this);
-        sourceButton.setText("Choose Wi-Fi source (automatic)");
+        sourceCard.addView(publishSourceButton, fullWidth());
+        sourceButton = makeButton("Choose source (automatic)", Color.parseColor("#1A3551"), Color.WHITE);
         sourceButton.setOnClickListener(v -> showSourcePicker());
-        box.addView(sourceButton);
+        addWithTopMargin(sourceCard, sourceButton, 10);
+        page.addView(sourceCard, cardParams());
 
-        wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        LinearLayout discoverCard = makeCard(panel);
+        addCardHeading(discoverCard, "Discover & manage", "Open the discovery workspace to search the selected radius and review source availability.");
+        Button dashboardButton = makeButton("Explore Wi-Fi sources", mint, navy);
+        dashboardButton.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
+        discoverCard.addView(dashboardButton, fullWidth());
+        page.addView(discoverCard, cardParams());
+
+        LinearLayout statusCard = makeCard(panel);
+        addCardHeading(statusCard, "Connection status", "Live updates from the app appear here.");
         networkInfo = new TextView(this);
+        networkInfo.setTextColor(muted);
         networkInfo.setTextSize(13);
-        networkInfo.setPadding(0, 12, 0, 12);
-        box.addView(networkInfo);
+        networkInfo.setLineSpacing(dp(3), 1.0f);
+        statusCard.addView(networkInfo, fullWidth());
+        status = new TextView(this);
+        status.setText("Ready. Pair with an available source or start sharing an authorized network.");
+        status.setTextColor(Color.WHITE);
+        status.setTextSize(14);
+        status.setLineSpacing(dp(3), 1.0f);
+        addWithTopMargin(statusCard, status, 12);
+        page.addView(statusCard, cardParams());
 
-        Button portalButton = new Button(this);
-        portalButton.setText("Open Quant Wi-Fi portal");
-        portalButton.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("http://quant.com/status")));
-            } catch (Exception error) {
-                status.setText("Could not open the Quant portal. Connect to Quant Wi-Fi and visit quant.com/status.");
-            }
-        });
-        box.addView(portalButton);
-
-        Button disconnect = new Button(this);
-        disconnect.setText("Disconnect Dream VPN");
+        LinearLayout actionsCard = makeCard(panel);
+        addCardHeading(actionsCard, "Connection controls", "Stop the tunnel or revoke receiver pairings when needed.");
+        Button disconnect = makeButton("Disconnect Dream Tunnel", Color.parseColor("#1A3551"), Color.WHITE);
         disconnect.setOnClickListener(v -> {
             Intent intent = new Intent(this, DreamVpnService.class);
             intent.setAction(DreamVpnService.ACTION_STOP);
             startService(intent);
             status.setText("Disconnect requested.");
         });
-        box.addView(disconnect);
+        actionsCard.addView(disconnect, fullWidth());
+        Button revokePairingsButton = makeButton("Revoke receiver pairings", Color.parseColor("#3B2835"), Color.parseColor("#FFD8E4"));
+        revokePairingsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, DreamVpnService.class);
+            intent.setAction(DreamVpnService.ACTION_REVOKE_PAIRINGS);
+            startService(intent);
+            status.setText("Requested receiver pairing revocation. Source sharing must be running for this to take effect.");
+        });
+        addWithTopMargin(actionsCard, revokePairingsButton, 10);
+        page.addView(actionsCard, cardParams());
 
-        status = new TextView(this);
-        status.setText("Ready. Complete Quant's package/login flow before testing internet.");
-        status.setTextSize(14);
-        status.setPadding(0, 16, 0, 0);
-        box.addView(status);
-        setContentView(box);
+        TextView footer = new TextView(this);
+        footer.setText("Dream Wi-Fi development build · Internet access is verified only after real traffic passes through the selected source.");
+        footer.setTextColor(Color.parseColor("#8397B0"));
+        footer.setTextSize(12);
+        footer.setLineSpacing(dp(3), 1.0f);
+        LinearLayout.LayoutParams footerParams = fullWidth();
+        footerParams.topMargin = dp(22);
+        page.addView(footer, footerParams);
+
+        scroll.addView(page);
+        setContentView(scroll);
+        wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         refreshNetworkInfo();
         DreamWifiCredentialStore.ReceiverCredentials savedReceiver = DreamWifiCredentialStore.loadReceiver(this);
         if (savedReceiver != null) {
@@ -172,8 +220,75 @@ public final class MainActivity extends Activity {
             pendingPairingCode = "";
             selectedSourceId = savedReceiver.sourceId;
             sourceButton.setText(selectedSourceLabel());
-            status.setText("Saved encrypted receiver pairing available. Tap Pair and connect VPN to resume; if the server restarted, you may need a fresh code.");
+            status.setText("Saved encrypted receiver pairing available. Tap Pair & connect to resume; if the service restarted, a fresh code may be needed.");
         }
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private LinearLayout.LayoutParams fullWidth() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams cardParams() {
+        LinearLayout.LayoutParams params = fullWidth();
+        params.topMargin = dp(16);
+        return params;
+    }
+
+    private void addWithTopMargin(LinearLayout parent, android.view.View child, int top) {
+        LinearLayout.LayoutParams params = fullWidth();
+        params.topMargin = dp(top);
+        parent.addView(child, params);
+    }
+
+    private GradientDrawable roundRect(int color, int radius, int strokeColor) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radius);
+        drawable.setStroke(dp(1), strokeColor);
+        return drawable;
+    }
+
+    private LinearLayout makeCard(int color) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(18), dp(18), dp(18));
+        card.setBackground(roundRect(color, dp(20), Color.parseColor("#263E5A")));
+        return card;
+    }
+
+    private void addCardHeading(LinearLayout card, String heading, String description) {
+        TextView title = new TextView(this);
+        title.setText(heading);
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(18);
+        title.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        card.addView(title, fullWidth());
+        TextView detail = new TextView(this);
+        detail.setText(description);
+        detail.setTextColor(Color.parseColor("#B7C7DC"));
+        detail.setTextSize(13);
+        detail.setLineSpacing(dp(3), 1.0f);
+        LinearLayout.LayoutParams params = fullWidth();
+        params.topMargin = dp(6);
+        params.bottomMargin = dp(14);
+        card.addView(detail, params);
+    }
+
+    private Button makeButton(String label, int backgroundColor, int textColor) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextSize(14);
+        button.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        button.setTextColor(textColor);
+        button.setPadding(dp(12), dp(10), dp(12), dp(10));
+        button.setBackground(roundRect(backgroundColor, dp(13), backgroundColor));
+        button.setStateListAnimator(null);
+        return button;
     }
 
     private void connectWithPairingCode() {

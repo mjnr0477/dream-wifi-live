@@ -80,15 +80,15 @@ async function main() {
     const missingLocation = await fetch(base + "/api/wifi/sources");
     assert.equal(missingLocation.status, 400);
 
-    const sourceResponse = await fetch(base + "/api/wifi/sources?latitude=-0.56&longitude=34.56&radius_km=300");
+    const sourceResponse = await fetch(base + "/api/wifi/sources?latitude=-0.56&longitude=34.56&radius_km=500");
     assert.equal(sourceResponse.status, 200);
     const sources = await sourceResponse.json();
     assert.equal(sources.success, true);
     assert.equal(sources.count, 0);
     assert.equal(sources.online_count, 0);
-    assert.equal(sources.radius_km, 300);
+    assert.equal(sources.radius_km, 500);
 
-    const invalidRadius = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=301");
+    const invalidRadius = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=501");
     assert.equal(invalidRadius.status, 400);
 
     const hotspotResponse = await fetch(base + "/api/wifi/hotspots?latitude=-0.56&longitude=34.56&radius_km=25");

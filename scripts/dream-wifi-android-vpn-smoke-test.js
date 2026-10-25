@@ -79,6 +79,8 @@ assert.match(credentialStore, /AndroidKeyStore/);
 assert.match(credentialStore, /AES\/GCM\/NoPadding/);
 assert.match(credentialStore, /setRandomizedEncryptionRequired\(true\)/);
 assert.match(nativeRelay, /LOCAL_PROXY_PORT = 1081/);
+assert.match(nativeRelay, /sourceNetwork\.getAllByName\(host\)/, "Source destination DNS must use the same upstream network as forwarded sockets.");
+assert.match(nativeRelay, /sourceNetwork\.bindSocket\(socket\)/, "Source TCP traffic must bind to the selected upstream network.");
 assert.match(nativeRelay, /putSafe\("role", "client"\)/);
 assert.match(nativeRelay, /putSafe\("role", "source"\)/);
 assert.match(nativeRelay, /tcp-open/);

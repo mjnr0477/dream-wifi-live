@@ -759,7 +759,12 @@ final class DreamWifiRelay {
     }
 
     private InetAddress resolvePublicAddress(String host) throws IOException {
-        InetAddress[] answers = InetAddress.getAllByName(host);
+        // Resolve destinations on the same upstream network that will carry the socket.
+        // The device's default DNS may belong to the other network when Wi-Fi and mobile data
+        // are both available, causing every tunneled request to fail before connect().
+        InetAddress[] answers = sourceOnly && sourceNetwork != null
+                ? sourceNetwork.getAllByName(host)
+                : InetAddress.getAllByName(host);
         if (answers.length == 0) throw new IOException("Destination did not resolve.");
         for (InetAddress answer : answers) if (!isPublicAddress(answer)) throw new IOException("Private or reserved destination is blocked.");
         return answers[0];

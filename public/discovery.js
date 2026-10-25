@@ -163,6 +163,7 @@
     { enableHighAccuracy:false, maximumAge:120000, timeout:20000 });
   }
 
+  // Async handler is required because Android Wi-Fi scan results refresh after startScan().
   $("scan-local").addEventListener("click", async () => {
     const native = window.DreamWifiNative;
     if (!native || typeof native.requestLocalWifiScan !== "function") {

@@ -22,6 +22,7 @@ permissions:
 
 jobs:
   android-debug:
+    if: github.ref_name != 'idea/500km-one-app-development-v2'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

@@ -26,8 +26,8 @@ function buildOverpassQuery(latitude, longitude, radiusKm) {
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) {
     throw new TypeError("Valid latitude and longitude are required.");
   }
-  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 300) {
-    throw new RangeError("radiusKm must be between 1 and 300.");
+  if (!Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 500) {
+    throw new RangeError("radiusKm must be between 1 and 500.");
   }
   const around = `around:${radiusM},${lat},${lon}`;
   return `[out:json][timeout:20];(nwr(${around})["internet_access"~"^(wlan|yes|free|customers|public)$",i];nwr(${around})["wifi"~"^(yes|free|customers)$",i];);out center 200;`;

@@ -115,7 +115,7 @@ public final class DreamVpnService extends VpnService {
     private void maybeReconnectSourceOnNetwork(Network network) {
         if (!activeSourceMode || network == null || network.equals(activeSourceNetwork)) return;
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        if (manager == null || !isValidatedSourceNetwork(manager, network)) return;
+        if (manager == null || !isUsableSourceNetwork(manager, network)) return;
         DreamWifiCredentialStore.SourceCredentials credentials = DreamWifiCredentialStore.loadSource(this);
         if (credentials == null) {
             activeSourceMode = false;
@@ -211,7 +211,7 @@ public final class DreamVpnService extends VpnService {
         Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
         ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         Network sourceNetwork = sourceOnly
-                ? (requestedSourceNetwork != null && networkManager != null && isValidatedSourceNetwork(networkManager, requestedSourceNetwork)
+                ? (requestedSourceNetwork != null && networkManager != null && isUsableSourceNetwork(networkManager, requestedSourceNetwork)
                     ? requestedSourceNetwork : findConnectedSourceNetwork())
                 : null;
         if (sourceOnly && sourceNetwork == null) {
@@ -338,9 +338,9 @@ public final class DreamVpnService extends VpnService {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (manager == null) return null;
         Network active = manager.getActiveNetwork();
-        if (active != null && isValidatedSourceNetwork(manager, active)) return active;
+        if (active != null && isUsableSourceNetwork(manager, active)) return active;
         for (Network network : manager.getAllNetworks()) {
-            if (isValidatedSourceNetwork(manager, network)) return network;
+            if (isUsableSourceNetwork(manager, network)) return network;
         }
         return null;
     }
@@ -363,12 +363,21 @@ public final class DreamVpnService extends VpnService {
         return null;
     }
 
-    private boolean isValidatedSourceNetwork(ConnectivityManager manager, Network network) {
+    private boolean isUsableSourceNetwork(ConnectivityManager manager, Network network) {
         NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
-        return capabilities != null
-                && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        if (capabilities == null
+                || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+            return false;
+        }
+        // A Wi-Fi network may have internet capability but be marked unvalidated while
+        // its owner must complete a captive portal or provider activation. Allow selecting
+        // that Wi-Fi as the egress network; the tunnel control channel should use a separate
+        // validated network when available. This does not bypass the portal or router access.
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            return true;
+        }
+        // Do not select unvalidated cellular as a source path.
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 

@@ -180,10 +180,6 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         startForeground(ID, notification("Connecting to Dream Tunnel…"));
-        if (relay != null) {
-            updateNotification("Dream Wi-Fi is already connecting or running.");
-            return START_STICKY;
-        }
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         if (sourceOnly) clearPublishedPairingCode();
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
@@ -203,6 +199,18 @@ public final class DreamVpnService extends VpnService {
                     : "Enter a valid one-time source pairing code in Dream Wi-Fi.");
             stopSelf();
             return START_NOT_STICKY;
+        }
+        // The app has one active tunnel role at a time. Explicitly switch roles instead
+        // of silently keeping the old relay alive and leaving the new screen waiting forever.
+        if (relay != null) {
+            if (activeSourceMode == sourceOnly) {
+                updateNotification(sourceOnly
+                        ? "This phone is already sharing. Its current pairing code remains active."
+                        : "This phone is already connected as a receiver.");
+                return START_STICKY;
+            }
+            updateNotification("Switching Dream Wi-Fi connection role…");
+            stopTunnel();
         }
         Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
         ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);

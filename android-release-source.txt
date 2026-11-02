@@ -1,0 +1,2 @@
+Dream Wi-Fi Android release source commit: 95bde96e397c9a4db0895a75fcecc1312b4f0602
+Includes the foreground tunnel wake-lock implementation and the WAKE_LOCK manifest permission.

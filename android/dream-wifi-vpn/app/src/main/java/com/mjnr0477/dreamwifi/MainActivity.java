@@ -179,7 +179,7 @@ public final class MainActivity extends Activity {
         pairingHint.setPadding(0, 6, 0, 12);
         pairingCard.addView(pairingHint);
         pairingCodeDisplay = new TextView(this);
-        pairingCodeDisplay.setText("Waiting for source…");
+        pairingCodeDisplay.setText("Connecting to Dream Wi-Fi…");
         pairingCodeDisplay.setTextSize(27);
         pairingCodeDisplay.setGravity(Gravity.CENTER);
         pairingCodeDisplay.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -400,7 +400,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!hasValidatedInternetConnection()) {
-            status.setText("Connect to Wi-Fi or turn on mobile data with internet, then tap Share internet again.");
+            status.setText("Dream Wi-Fi cannot request a sharing code until this phone can reach the Dream Wi-Fi server. Turn on mobile data or connect to another working internet connection. If Quant Wi-Fi is the network you want to share, keep it connected too; Dream Wi-Fi will test its actual internet route separately.");
             return;
         }
         // Location is optional for sharing. Never block source setup on a location permission prompt.

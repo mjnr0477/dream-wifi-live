@@ -344,9 +344,25 @@ public final class DreamVpnService extends VpnService {
         Network active = manager.getActiveNetwork();
         Network[] networks = manager.getAllNetworks();
 
-        // Prefer the connected Wi-Fi network as the shared upstream even if Android
-        // has not marked it VALIDATED yet. The control WebSocket can use a separate
-        // validated mobile-data network while destination sockets stay on this Wi-Fi.
+        // First choose a network Android has verified can reach the public internet.
+        // Prefer Wi-Fi when both Wi-Fi and mobile data are validated, then fall back
+        // to validated mobile data if the connected Wi-Fi is only a captive portal.
+        if (active != null && isValidatedSourceNetwork(manager, active)) {
+            NetworkCapabilities caps = manager.getNetworkCapabilities(active);
+            if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return active;
+        }
+        for (Network network : networks) {
+            NetworkCapabilities caps = manager.getNetworkCapabilities(network);
+            if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    && isValidatedSourceNetwork(manager, network)) return network;
+        }
+        if (active != null && isValidatedSourceNetwork(manager, active)) return active;
+        for (Network network : networks) {
+            if (isValidatedSourceNetwork(manager, network)) return network;
+        }
+
+        // Preserve captive-portal support only when there is no validated internet
+        // network available at all. The owner-side probe will then report portal mode.
         if (active != null) {
             NetworkCapabilities caps = manager.getNetworkCapabilities(active);
             if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return active;
@@ -354,10 +370,6 @@ public final class DreamVpnService extends VpnService {
         for (Network network : networks) {
             NetworkCapabilities caps = manager.getNetworkCapabilities(network);
             if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return network;
-        }
-        if (active != null && isValidatedSourceNetwork(manager, active)) return active;
-        for (Network network : networks) {
-            if (isValidatedSourceNetwork(manager, network)) return network;
         }
         return null;
     }

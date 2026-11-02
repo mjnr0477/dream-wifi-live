@@ -134,13 +134,13 @@ public final class DashboardActivity extends Activity {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                     && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread(() -> requestPermissions(new String[] { Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION }, LOCATION_PERMISSION_REQUEST));
-                return "{\\"status\\":\\"permission_required\\",\\"networks\\":[]}";
+                return "{\"status\":\"permission_required\",\"networks\":[]}";
             }
             try {
                 LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-                if (android.os.Build.VERSION.SDK_INT >= 28 && lm != null && !lm.isLocationEnabled()) return "{\\"status\\":\\"location_services_off\\",\\"networks\\":[]}";
+                if (android.os.Build.VERSION.SDK_INT >= 28 && lm != null && !lm.isLocationEnabled()) return "{\"status\":\"location_services_off\",\"networks\":[]}";
                 WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-                if (wifi == null || !wifi.isWifiEnabled()) return "{\\"status\\":\\"wifi_off\\",\\"networks\\":[],\\"message\\":\\"Turn on Wi-Fi and retry.\\"}";
+                if (wifi == null || !wifi.isWifiEnabled()) return "{\"status\":\"wifi_off\",\"networks\":[],\"message\":\"Turn on Wi-Fi and retry.\"}";
                 boolean started = wifi.startScan();
                 java.util.List<ScanResult> scans = wifi.getScanResults();
                 org.json.JSONArray networks = new org.json.JSONArray();
@@ -161,29 +161,29 @@ public final class DashboardActivity extends Activity {
                 result.put("status", "ok"); result.put("networks", networks); result.put("scan_started", started);
                 result.put("note", started ? "Android may return cached results. Scan again in a few seconds for refreshed results." : "Android may have throttled the scan; these are the available results.");
                 return result.toString();
-            } catch (SecurityException error) { return "{\\"status\\":\\"permission_required\\",\\"networks\\":[]}"; 
-            } catch (Exception error) { return "{\\"status\\":\\"error\\",\\"networks\\":[],\\"message\\":\\"Wi-Fi scan failed. Check Wi-Fi and Location settings.\\"}"; }
+            } catch (SecurityException error) { return "{\"status\":\"permission_required\",\"networks\":[]}";
+            } catch (Exception error) { return "{\"status\":\"error\",\"networks\":[],\"message\":\"Wi-Fi scan failed. Check Wi-Fi and Location settings.\"}"; }
         }
 
         @JavascriptInterface
         public String suggestOpenWifi(String ssid) {
             String networkName = ssid == null ? "" : ssid.trim();
-            if (networkName.isEmpty() || networkName.length() > 32) return "{\\"status\\":\\"invalid_ssid\\"}";
-            if (android.os.Build.VERSION.SDK_INT < 29) return "{\\"status\\":\\"settings_required\\"}";
+            if (networkName.isEmpty() || networkName.length() > 32) return "{\"status\":\"invalid_ssid\"}";
+            if (android.os.Build.VERSION.SDK_INT < 29) return "{\"status\":\"settings_required\"}";
             if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread(() -> requestPermissions(new String[] { Manifest.permission.NEARBY_WIFI_DEVICES }, LOCATION_PERMISSION_REQUEST + 1));
-                return "{\\"status\\":\\"permission_required\\"}";
+                return "{\"status\":\"permission_required\"}";
             }
             try {
                 WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-                if (wifi == null) return "{\\"status\\":\\"unavailable\\"}";
+                if (wifi == null) return "{\"status\":\"unavailable\"}";
                 WifiNetworkSuggestion suggestion = new WifiNetworkSuggestion.Builder().setSsid(networkName).build();
                 int result = wifi.addNetworkSuggestions(java.util.Collections.singletonList(suggestion));
-                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) return "{\\"status\\":\\"suggested\\"}";
-                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_DUPLICATE) return "{\\"status\\":\\"already_suggested\\"}";
-                return "{\\"status\\":\\"settings_required\\"}";
-            } catch (SecurityException error) { return "{\\"status\\":\\"permission_required\\"}";
-            } catch (Exception error) { return "{\\"status\\":\\"settings_required\\"}"; }
+                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) return "{\"status\":\"suggested\"}";
+                if (result == WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_DUPLICATE) return "{\"status\":\"already_suggested\"}";
+                return "{\"status\":\"settings_required\"}";
+            } catch (SecurityException error) { return "{\"status\":\"permission_required\"}";
+            } catch (Exception error) { return "{\"status\":\"settings_required\"}"; }
         }
         @JavascriptInterface
         public void openWifiSettings() {

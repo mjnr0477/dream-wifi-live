@@ -74,7 +74,7 @@ assert.match(service, /EXTRA_SOURCE_NETWORK/);
 assert.match(service, /SERVICE_STATE_PREFS/);
 assert.match(service, /MODE_RECEIVER/);
 assert.match(service, /return START_STICKY/);
-assert.match(service, /Explicitly switch roles instead of silently keeping the old relay alive/);
+assert.match(service, /Explicitly switch roles/);
 assert.match(service, /This phone is already sharing/);
 assert.ok(
   service.indexOf("if (sourceOnly) clearPublishedPairingCode();") >

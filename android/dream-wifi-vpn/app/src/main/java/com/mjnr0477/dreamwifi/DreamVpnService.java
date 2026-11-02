@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.PowerManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -55,6 +56,7 @@ public final class DreamVpnService extends VpnService {
     static final String KEY_PAIRING_CODE_EXPIRES_AT = "expires_at";
 
     private volatile boolean running = false;
+    private PowerManager.WakeLock tunnelWakeLock;
     private volatile boolean captivePortalMode = false;
     private volatile int tunFd = -1;
     private volatile boolean activeSourceMode = false;
@@ -170,6 +172,7 @@ public final class DreamVpnService extends VpnService {
             clearActiveMode();
             stopTunnel();
             stopForeground(true);
+            releaseTunnelWakeLock();
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -180,6 +183,7 @@ public final class DreamVpnService extends VpnService {
             return START_STICKY;
         }
         startForeground(ID, notification("Connecting to Dream Tunnel…"));
+        acquireTunnelWakeLock();
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
         String receiverAccessToken = intent == null ? "" : intent.getStringExtra(EXTRA_ACCESS_TOKEN);
@@ -535,6 +539,22 @@ public final class DreamVpnService extends VpnService {
         if (current != null) current.stop();
     }
 
+    private synchronized void acquireTunnelWakeLock() {
+        if (tunnelWakeLock != null && tunnelWakeLock.isHeld()) return;
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        if (power == null) return;
+        tunnelWakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DreamWifi:RelayTunnel");
+        tunnelWakeLock.setReferenceCounted(false);
+        tunnelWakeLock.acquire();
+    }
+
+    private synchronized void releaseTunnelWakeLock() {
+        if (tunnelWakeLock != null) {
+            try { if (tunnelWakeLock.isHeld()) tunnelWakeLock.release(); } catch (Exception ignored) {}
+            tunnelWakeLock = null;
+        }
+    }
+
     private void updateNotification(String text) {
         try { getSystemService(NotificationManager.class).notify(ID, notification(text)); }
         catch (Exception ignored) {}
@@ -578,6 +598,7 @@ public final class DreamVpnService extends VpnService {
         clearActiveMode();
         stopTunnel();
         stopForeground(true);
+        releaseTunnelWakeLock();
         stopSelf();
         super.onRevoke();
     }
@@ -589,6 +610,7 @@ public final class DreamVpnService extends VpnService {
             networkCallbackRegistered = false;
         }
         stopTunnel();
+        releaseTunnelWakeLock();
         super.onDestroy();
     }
 }

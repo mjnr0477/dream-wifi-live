@@ -23,7 +23,7 @@ assert.doesNotMatch(landing, /id="hotspots"/, "Landing page should stay simple a
 assert.match(js, /radius = selected === "world" \? 20040/);
 assert.match(js, /requestLocalWifiScan/);
 assert.match(js, /openWifiSettings/);
-assert.match(activity, /DASHBOARD_URL = "https:\/\/dream-wifi-live\.onrender\.com\/discovery\.html"/);
+assert.match(activity, /DASHBOARD_URL = "https:\/\/dream-wifi-live-cxah\.onrender\.com\/discovery\.html"/);
 assert.match(activity, /public String requestLocalWifiScan\(\)/);
 assert.match(activity, /WifiNetworkSuggestion/);
 assert.match(activity, /public String suggestOpenWifi\(String ssid\)/);

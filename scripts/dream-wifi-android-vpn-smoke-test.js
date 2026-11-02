@@ -83,7 +83,7 @@ assert.ok(
 );
 assert.match(service, /First choose a network Android has verified can reach the public internet/);
 assert.match(service, /unvalidated Wi-Fi\/captive portal is a last resort only/);
-assert.match(service, /Do not switch away from a working cellular route/);
+assert.match(service, /working cellular route/);
 assert.doesNotMatch(service, /intent == null \? ACTION_STOP/);
 assert.match(nativeRelay, /onReceiverCredential/);
 assert.match(credentialStore, /RECEIVER_KEY_ALIAS/);

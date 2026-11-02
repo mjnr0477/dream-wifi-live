@@ -384,8 +384,14 @@ public final class DreamVpnService extends VpnService {
 
     private boolean isUsableSourceNetwork(ConnectivityManager manager, Network network) {
         NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
-        return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                || isValidatedSourceCapabilities(capabilities));
+        if (isValidatedSourceCapabilities(capabilities)) return true;
+        if (capabilities == null || !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return false;
+        // An unvalidated Wi-Fi/captive portal is a last resort only. Do not switch
+        // away from a working cellular route just because a Wi-Fi network appeared.
+        for (Network candidate : manager.getAllNetworks()) {
+            if (isValidatedSourceNetwork(manager, candidate)) return false;
+        }
+        return true;
     }
 
 

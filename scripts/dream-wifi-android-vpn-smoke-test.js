@@ -76,6 +76,8 @@ assert.match(service, /MODE_RECEIVER/);
 assert.match(service, /return START_STICKY/);
 assert.match(service, /Explicitly switch roles/);
 assert.match(service, /This phone is already sharing/);
+assert.match(service, /Refreshing the expired source pairing code/);
+assert.match(service, /activeCodeExpiry > System\.currentTimeMillis\(\)/);
 assert.ok(
   service.indexOf("if (sourceOnly) clearPublishedPairingCode();") >
     service.indexOf("if (relay != null) {\n            if (activeSourceMode == sourceOnly)"),

@@ -81,17 +81,13 @@ public final class DreamVpnService extends VpnService {
                 .build();
         wifiNetworkCallback = new ConnectivityManager.NetworkCallback() {
             @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
-                boolean validatedInternet = capabilities != null
-                        && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                            || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
-                        && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                boolean wifiAvailable = capabilities != null
+                        && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+                boolean validatedInternet = isValidatedSourceCapabilities(capabilities);
                 networkHandler.post(() -> {
-                    if (activeSourceMode && network.equals(activeSourceNetwork) && !validatedInternet) {
-                        activeSourceNetwork = null;
-                        updateNotification("Source internet connection lost; waiting to reconnect.");
-                    }
-                    if (validatedInternet) maybeReconnectSourceOnNetwork(network);
+                    // Keep a connected Wi-Fi Network even when Android labels it unvalidated.
+                    // Captive/limited networks may still pass the provider's own portal or route.
+                    if (wifiAvailable || validatedInternet) maybeReconnectSourceOnNetwork(network);
                 });
             }
 
@@ -115,7 +111,7 @@ public final class DreamVpnService extends VpnService {
     private void maybeReconnectSourceOnNetwork(Network network) {
         if (!activeSourceMode || network == null || network.equals(activeSourceNetwork)) return;
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        if (manager == null || !isValidatedSourceNetwork(manager, network)) return;
+        if (manager == null || !isUsableSourceNetwork(manager, network)) return;
         DreamWifiCredentialStore.SourceCredentials credentials = DreamWifiCredentialStore.loadSource(this);
         if (credentials == null) {
             activeSourceMode = false;
@@ -338,11 +334,38 @@ public final class DreamVpnService extends VpnService {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (manager == null) return null;
         Network active = manager.getActiveNetwork();
+        Network[] networks = manager.getAllNetworks();
+
+        // Prefer the connected Wi-Fi network as the shared upstream even if Android
+        // has not marked it VALIDATED yet. The control WebSocket can use a separate
+        // validated mobile-data network while destination sockets stay on this Wi-Fi.
+        if (active != null) {
+            NetworkCapabilities caps = manager.getNetworkCapabilities(active);
+            if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return active;
+        }
+        for (Network network : networks) {
+            NetworkCapabilities caps = manager.getNetworkCapabilities(network);
+            if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return network;
+        }
         if (active != null && isValidatedSourceNetwork(manager, active)) return active;
-        for (Network network : manager.getAllNetworks()) {
+        for (Network network : networks) {
             if (isValidatedSourceNetwork(manager, network)) return network;
         }
         return null;
+    }
+
+    private boolean isValidatedSourceCapabilities(NetworkCapabilities capabilities) {
+        return capabilities != null
+                && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    private boolean isUsableSourceNetwork(ConnectivityManager manager, Network network) {
+        NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
+        return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                || isValidatedSourceCapabilities(capabilities));
     }
 
 

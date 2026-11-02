@@ -74,6 +74,16 @@ assert.match(service, /EXTRA_SOURCE_NETWORK/);
 assert.match(service, /SERVICE_STATE_PREFS/);
 assert.match(service, /MODE_RECEIVER/);
 assert.match(service, /return START_STICKY/);
+assert.match(service, /Explicitly switch roles instead of silently keeping the old relay alive/);
+assert.match(service, /This phone is already sharing/);
+assert.ok(
+  service.indexOf("if (sourceOnly) clearPublishedPairingCode();") >
+    service.indexOf("if (relay != null) {\n            if (activeSourceMode == sourceOnly)"),
+  "Repeated Share taps must preserve the active pairing code instead of clearing it."
+);
+assert.match(service, /First choose a network Android has verified can reach the public internet/);
+assert.match(service, /unvalidated Wi-Fi\/captive portal is a last resort only/);
+assert.match(service, /Do not switch away from a working cellular route/);
 assert.doesNotMatch(service, /intent == null \? ACTION_STOP/);
 assert.match(nativeRelay, /onReceiverCredential/);
 assert.match(credentialStore, /RECEIVER_KEY_ALIAS/);

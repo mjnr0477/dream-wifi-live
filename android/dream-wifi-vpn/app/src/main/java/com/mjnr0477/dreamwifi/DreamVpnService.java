@@ -181,7 +181,6 @@ public final class DreamVpnService extends VpnService {
         }
         startForeground(ID, notification("Connecting to Dream Tunnel…"));
         boolean sourceOnly = intent != null && intent.getBooleanExtra(EXTRA_SOURCE_ONLY, false);
-        if (sourceOnly) clearPublishedPairingCode();
         String pairingCode = intent == null ? "" : intent.getStringExtra(EXTRA_PAIRING_CODE);
         String receiverAccessToken = intent == null ? "" : intent.getStringExtra(EXTRA_ACCESS_TOKEN);
         String sourceToken = intent == null ? "" : intent.getStringExtra(EXTRA_SOURCE_TOKEN);
@@ -212,6 +211,9 @@ public final class DreamVpnService extends VpnService {
             updateNotification("Switching Dream Wi-Fi connection role…");
             stopTunnel();
         }
+        // Clear an old code only when a new source session is actually starting.
+        // Repeated Share taps must not erase the active code without reconnecting.
+        if (sourceOnly) clearPublishedPairingCode();
         Network requestedSourceNetwork = intent == null ? null : (Network) intent.getParcelableExtra(EXTRA_SOURCE_NETWORK);
         ConnectivityManager networkManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         Network sourceNetwork = sourceOnly

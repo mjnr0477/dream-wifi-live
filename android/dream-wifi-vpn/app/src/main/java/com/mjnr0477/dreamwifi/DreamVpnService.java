@@ -257,7 +257,9 @@ public final class DreamVpnService extends VpnService {
         getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_ACTIVE_MODE, sourceOnly ? MODE_SOURCE : MODE_RECEIVER).commit();
         String sourceName = sourceOnly ? getConnectedSourceName(sourceNetwork) : "Android " + Build.MODEL;
-        Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
+        // Both roles need the control WebSocket on a verified route. For a source,
+        // prefer a different validated network than the one being shared.
+        Network controlNetwork = findAlternateControlNetwork(sourceOnly ? sourceNetwork : null);
         relay = new DreamWifiRelay(pairingCode, receiverAccessToken, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
                 if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("captive portal redirect detected")) {

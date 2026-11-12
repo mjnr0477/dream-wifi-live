@@ -69,15 +69,17 @@ assert.match(service, /NET_CAPABILITY_VALIDATED/);
 assert.match(service, /Keep a connected Wi-Fi Network even when Android labels it unvalidated/);
 assert.match(service, /isUsableSourceNetwork\(manager, network\)/);
 assert.match(service, /hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)\) return active/);
-assert.match(activity, /Dream Wi-Fi cannot request a sharing code until this phone can reach the Dream Wi-Fi server/);
+assert.match(activity, /Dream Wi-Fi cannot request a sharing code until this phone has a validated Wi-Fi or mobile-data connection to the service/);
+assert.match(activity, /findValidatedInternetNetwork\(\)/, "Source enrollment must select a validated Android network.");
+assert.match(activity, /network\.openConnection\(url\)/, "Source enrollment HTTP must use the selected validated network.");
+assert.doesNotMatch(activity, /performSourceEnrollment\(\);/, "Every source enrollment path must pass a freshly selected validated network.");
 assert.match(service, /EXTRA_SOURCE_NETWORK/);
 assert.match(service, /SERVICE_STATE_PREFS/);
 assert.match(service, /MODE_RECEIVER/);
 assert.match(service, /return START_STICKY/);
 assert.match(service, /Explicitly switch roles/);
 assert.match(service, /This phone is already sharing/);
-assert.match(service, /Refreshing the expired source pairing code/);
-assert.match(service, /activeCodeExpiry > System\.currentTimeMillis\(\)/);
+// Share now refreshes the existing source session in place; the expiry/restart assertions were retired.
 assert.ok(
   service.indexOf("if (sourceOnly) clearPublishedPairingCode();") >
     service.indexOf("if (relay != null) {\n            if (activeSourceMode == sourceOnly)"),
@@ -95,8 +97,17 @@ assert.match(credentialStore, /AndroidKeyStore/);
 assert.match(credentialStore, /AES\/GCM\/NoPadding/);
 assert.match(credentialStore, /setRandomizedEncryptionRequired\(true\)/);
 assert.match(nativeRelay, /LOCAL_PROXY_PORT = 1081/);
+assert.match(nativeRelay, /MAX_STREAMS = 32/, "The source relay must support more concurrent TCP streams across receivers.");
+assert.match(nativeRelay, /sourceStreamSlots\.tryAcquire\(\)/, "Source stream concurrency must be reserved atomically before opening sockets.");
+assert.match(nativeRelay, /sourceStreamSlots\.release\(\)/, "Source stream capacity must be released after each socket closes.");
+assert.match(nativeRelay, /requestPairingCode\(\)/, "The source relay must support one-time code rotation.");
+assert.match(service, /requestPairingCode\(\)/, "Repeated Share actions must refresh the active pairing code.");
 assert.match(nativeRelay, /sourceNetwork\.getAllByName\(host\)/, "Source destination DNS must use the same upstream network as forwarded sockets.");
 assert.match(nativeRelay, /sourceNetwork\.bindSocket\(socket\)/, "Source TCP traffic must bind to the selected upstream network.");
+assert.match(service, /findAlternateControlNetwork\(sourceOnly \? sourceNetwork : null\)/, "Both receiver and source control channels must select a validated network.");
+assert.match(service, /if \(sourceOnly && controlNetwork == null\) controlNetwork = sourceNetwork;/, "A source with one validated route must bind control traffic to that route.");
+assert.match(nativeRelay, /if \(controlNetwork != null\)/, "The cloud WebSocket must bind to the selected validated control network.");
+assert.doesNotMatch(nativeRelay, /OkHttpClient\.Builder[\s\S]{0,500}if \(sourceOnly && controlNetwork != null\)/, "Receiver WebSocket setup must not be gated to source mode.");
 assert.match(nativeRelay, /putSafe\("role", "client"\)/);
 assert.match(nativeRelay, /putSafe\("role", "source"\)/);
 assert.match(nativeRelay, /tcp-open/);
@@ -125,6 +136,9 @@ assert.match(tunnel, /MAX_MESSAGE_BYTES/);
 assert.match(tunnel, /revoke-pairings/);
 assert.match(workflow, /9b2c2320b26046b307abd6ddb5f102b2ccd1d4a4/);
 assert.match(workflow, /Run Android architecture and credential-storage smoke test/);
+assert.match(workflow, /dream-wifi-live-cxah\.onrender\.com/, "Android test builds must default to the confirmed production Render hostname.");
+assert.doesNotMatch(workflow, /dream-wifi-live\.onrender\.com/, "Android test builds must not use the stale Render hostname.");
+assert.match(releaseWorkflow, /DREAM_WIFI_BASE_URL: https:\/\/dream-wifi-live-cxah\.onrender\.com/, "Signed releases and test builds must target the same production backend.");
 assert.match(workflow, /DREAM_WIFI_BASE_URL/);
 assert.match(releaseWorkflow, /workflow_dispatch/);
 assert.match(releaseWorkflow, /ANDROID_KEYSTORE_BASE64/);

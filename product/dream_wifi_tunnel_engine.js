@@ -6,8 +6,8 @@ const { WebSocket, WebSocketServer } = require("ws");
 const MAX_MESSAGE_BYTES = 24 * 1024;
 const MAX_TCP_CHUNK_BYTES = 12 * 1024;
 const MAX_STREAMS_PER_OWNER = 8;
-const MAX_CLIENTS_PER_IP = 12;
-const connectionsPerIp = new Map();
+const MAX_TOTAL_CLIENTS = 512;
+const MAX_PAIRING_ATTEMPTS_PER_IP = 60;
 const MAX_UDP_ASSOCIATIONS_PER_OWNER = 8;
 const MAX_UDP_DATAGRAM_BYTES = 8192;
 const UDP_IDLE_TIMEOUT_MS = 60000;
@@ -45,6 +45,7 @@ function attachDreamWifiTunnel(server, options = {}) {
   const pairingAttempts = new Map();
   const enrolledSourceTokens = new Map();
   const pendingPings = new Map();
+  let activeConnections = 0;
 
   function loadEnrolledSourceCredentials(credentials) {
     enrolledSourceTokens.clear();
@@ -119,7 +120,9 @@ function attachDreamWifiTunnel(server, options = {}) {
   function hashCredential(value) { return crypto.createHash("sha256").update(String(value)).digest("hex"); }
   function issuePairingCode(sourceSocket) {
     const now = Date.now();
-    for (const [hash, pairing] of pairingCodes.entries()) if (pairing.expiresAt <= now) pairingCodes.delete(hash);
+    for (const [hash, pairing] of pairingCodes.entries()) {
+      if (pairing.expiresAt <= now || pairing.sourceId === sourceSocket.dreamSourceId) pairingCodes.delete(hash);
+    }
     for (const [hash, credential] of pairingTokens.entries()) if (credential.expiresAt <= now) pairingTokens.delete(hash);
     for (const [ip, attempt] of pairingAttempts.entries()) if (attempt.resetAt <= now) pairingAttempts.delete(ip);
     const code = crypto.randomBytes(6).toString("hex").toUpperCase();
@@ -208,10 +211,16 @@ function attachDreamWifiTunnel(server, options = {}) {
       socket.close(1008, "Unknown Dream Wi-Fi WebSocket path");
       return;
     }
-    const remoteIp = String(socket._socket && socket._socket.remoteAddress || "unknown");
-    const activeForIp = connectionsPerIp.get(remoteIp) || 0;
-    if (activeForIp >= MAX_CLIENTS_PER_IP) { socket.close(1013, "Connection limit reached"); return; }
-    connectionsPerIp.set(remoteIp, activeForIp + 1);
+    if (activeConnections >= MAX_TOTAL_CLIENTS) { socket.close(1013, "Dream Wi-Fi is at capacity. Retry shortly."); return; }
+    activeConnections += 1;
+    socket.dreamConnectionCounted = true;
+    const forwardedFor = String(request && request.headers && request.headers["x-forwarded-for"] || "")
+      .split(",").map(value => value.trim()).filter(Boolean);
+    // Render sits behind a reverse proxy. Its forwarded client address avoids treating
+    // the shared proxy address as one customer and throttling unrelated mobile users.
+    const remoteIp = forwardedFor.length
+      ? forwardedFor[forwardedFor.length - 1]
+      : String(socket._socket && socket._socket.remoteAddress || "unknown");
     socket.dreamRemoteIp = remoteIp;
     socket.dreamRole = null;
     socket.registering = false;
@@ -297,7 +306,7 @@ function attachDreamWifiTunnel(server, options = {}) {
           const remote = socket.dreamRemoteIp;
           const attempt = pairingAttempts.get(remote) || { count: 0, resetAt: now + 10 * 60 * 1000 };
           if (attempt.resetAt <= now) { attempt.count = 0; attempt.resetAt = now + 10 * 60 * 1000; }
-          if (attempt.count >= 20) { reject(socket, "Too many pairing attempts. Wait ten minutes and retry."); return; }
+          if (attempt.count >= MAX_PAIRING_ATTEMPTS_PER_IP) { reject(socket, "Too many pairing attempts. Wait ten minutes and retry."); return; }
 
           const suppliedToken = typeof message.accessToken === "string" ? message.accessToken : "";
           if (suppliedToken) {
@@ -322,6 +331,10 @@ function attachDreamWifiTunnel(server, options = {}) {
             return;
           }
           pairingCodes.delete(codeHash);
+          // Pairing codes are single-use, but a source should be able to serve several
+          // receivers. Rotate a fresh code immediately after each successful redemption.
+          const pairedSource = sources.get(pairing.sourceId);
+          if (pairedSource && pairedSource.readyState === WebSocket.OPEN) issuePairingCode(pairedSource);
           const accessToken = crypto.randomBytes(32).toString("base64url");
           pairingTokens.set(hashCredential(accessToken), {
             sourceId: pairing.sourceId,
@@ -333,6 +346,11 @@ function attachDreamWifiTunnel(server, options = {}) {
           return;
         }
         reject(socket, "Unsupported endpoint role.");
+        return;
+      }
+
+      if (socket.dreamRole === "source" && message.type === "request-pairing-code") {
+        issuePairingCode(socket);
         return;
       }
 
@@ -501,8 +519,10 @@ function attachDreamWifiTunnel(server, options = {}) {
       closeStreamsFor(socket, "endpoint-disconnected");
       owners.delete(socket);
       if (socket.dreamPairingTimer) clearTimeout(socket.dreamPairingTimer);
-      const remainingForIp = Math.max(0, (connectionsPerIp.get(socket.dreamRemoteIp) || 1) - 1);
-      if (remainingForIp) connectionsPerIp.set(socket.dreamRemoteIp, remainingForIp); else connectionsPerIp.delete(socket.dreamRemoteIp);
+      if (socket.dreamConnectionCounted) {
+        activeConnections = Math.max(0, activeConnections - 1);
+        socket.dreamConnectionCounted = false;
+      }
       if (socket.dreamRole === "source" && sources.get(socket.dreamSourceId) === socket) {
         sources.delete(socket.dreamSourceId);
         for (const [codeHash, pairing] of pairingCodes.entries()) {

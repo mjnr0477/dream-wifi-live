@@ -399,26 +399,27 @@ public final class MainActivity extends Activity {
             status.setText("The Dream Wi-Fi service URL is not configured in this APK build.");
             return;
         }
-        if (!hasValidatedInternetConnection()) {
-            status.setText("Dream Wi-Fi cannot request a sharing code until this phone can reach the Dream Wi-Fi server. Turn on mobile data or connect to another working internet connection. If Quant Wi-Fi is the network you want to share, keep it connected too; Dream Wi-Fi will test its actual internet route separately.");
+        Network enrollmentNetwork = findValidatedInternetNetwork();
+        if (enrollmentNetwork == null) {
+            status.setText("Dream Wi-Fi cannot request a sharing code until this phone has a validated Wi-Fi or mobile-data connection to the service.");
             return;
         }
         // Location is optional for sharing. Never block source setup on a location permission prompt.
         Location location = getApproximateLocation();
         pendingSourceLatitude = location == null ? null : location.getLatitude();
         pendingSourceLongitude = location == null ? null : location.getLongitude();
-        performSourceEnrollment();
+        performSourceEnrollment(enrollmentNetwork);
     }
 
-    private boolean hasValidatedInternetConnection() {
+    private Network findValidatedInternetNetwork() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        if (manager == null) return false;
+        if (manager == null) return null;
         Network active = manager.getActiveNetwork();
-        if (active != null && hasValidatedInternet(manager, active)) return true;
+        if (active != null && hasValidatedInternet(manager, active)) return active;
         for (Network network : manager.getAllNetworks()) {
-            if (hasValidatedInternet(manager, network)) return true;
+            if (hasValidatedInternet(manager, network)) return network;
         }
-        return false;
+        return null;
     }
 
     private boolean hasValidatedInternet(ConnectivityManager manager, Network network) {
@@ -430,7 +431,7 @@ public final class MainActivity extends Activity {
                     || caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
     }
 
-    private void performSourceEnrollment() {
+    private void performSourceEnrollment(Network enrollmentNetwork) {
         DreamWifiCredentialStore.SourceCredentials saved = DreamWifiCredentialStore.loadSource(this);
         if (saved != null) {
             pendingSourceId = saved.sourceId;
@@ -445,7 +446,7 @@ public final class MainActivity extends Activity {
         status.setText("Creating a unique standalone source credential…");
         authWorker.execute(() -> {
             try {
-                JSONObject enrollment = postJson(DreamWifiRelay.BASE_URL + "/api/dream-wifi/source-enroll", new JSONObject(), null);
+                JSONObject enrollment = postJson(DreamWifiRelay.BASE_URL + "/api/dream-wifi/source-enroll", new JSONObject(), null, enrollmentNetwork);
                 String sourceId = enrollment.optString("source_id", "");
                 String sourceToken = enrollment.optString("source_token", "");
                 if (!enrollment.optBoolean("success") || sourceId.isEmpty() || sourceToken.isEmpty()) {
@@ -557,8 +558,9 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
-    private JSONObject postJson(String endpoint, JSONObject body, String bearer) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+    private JSONObject postJson(String endpoint, JSONObject body, String bearer, Network network) throws Exception {
+        URL url = new URL(endpoint);
+        HttpURLConnection connection = (HttpURLConnection) (network == null ? url.openConnection() : network.openConnection(url));
         connection.setRequestMethod("POST");
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(15000);
@@ -595,7 +597,13 @@ public final class MainActivity extends Activity {
                 pendingSourceLatitude = null;
                 pendingSourceLongitude = null;
             }
-            performSourceEnrollment();
+            Network enrollmentNetwork = findValidatedInternetNetwork();
+            if (enrollmentNetwork == null) {
+                connectButton.setEnabled(true);
+                status.setText("The validated internet connection changed. Reconnect to Wi-Fi or mobile data and try sharing again.");
+                return;
+            }
+            performSourceEnrollment(enrollmentNetwork);
         }
     }
 

@@ -211,24 +211,14 @@ public final class DreamVpnService extends VpnService {
                     updateNotification("This phone is already connected as a receiver.");
                     return START_STICKY;
                 }
-                android.content.SharedPreferences pairingPrefs =
-                        getSharedPreferences(PAIRING_CODE_PREFS, MODE_PRIVATE);
-                String activeCode = pairingPrefs.getString(KEY_PAIRING_CODE, "");
-                long activeCodeExpiry = pairingPrefs.getLong(KEY_PAIRING_CODE_EXPIRES_AT, 0L);
-                if (activeCode != null && activeCode.matches("[A-F0-9]{12}")
-                        && activeCodeExpiry > System.currentTimeMillis()) {
-                    updateNotification("This phone is already sharing. Its current pairing code remains active.");
-                    return START_STICKY;
-                }
-                // The server's one-time code expires. Reconnect the source endpoint
-                // to request a fresh code instead of leaving the Share button inert.
-                if (activeCode != null && !activeCode.isEmpty() && activeCodeExpiry > 0L) {
-                    updateNotification("Refreshing the expired source pairing code…");
-                    stopTunnel();
+                // A Share tap during an existing source session explicitly rotates the
+                // single-use code instead of reconnecting and leaving the old code stale.
+                if (relay.requestPairingCode()) {
+                    updateNotification("This phone is already sharing. A fresh code is being issued for the next receiver.");
                 } else {
-                    updateNotification("Source sharing is still connecting. Waiting for its pairing code…");
-                    return START_STICKY;
+                    updateNotification("Source sharing is still connecting. The code will appear when the relay is online.");
                 }
+                return START_STICKY;
             } else {
                 updateNotification("Switching Dream Wi-Fi connection role…");
                 stopTunnel();
@@ -267,7 +257,12 @@ public final class DreamVpnService extends VpnService {
         getSharedPreferences(SERVICE_STATE_PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_ACTIVE_MODE, sourceOnly ? MODE_SOURCE : MODE_RECEIVER).commit();
         String sourceName = sourceOnly ? getConnectedSourceName(sourceNetwork) : "Android " + Build.MODEL;
-        Network controlNetwork = sourceOnly ? findAlternateControlNetwork(sourceNetwork) : null;
+        // Both roles need the control WebSocket on a verified route. For a source,
+        // prefer a different validated network than the one being shared.
+        Network controlNetwork = findAlternateControlNetwork(sourceOnly ? sourceNetwork : null);
+        // If the source has no second validated route, its validated upstream is still
+        // safer than Android's default route (which may be an unvalidated Wi-Fi network).
+        if (sourceOnly && controlNetwork == null) controlNetwork = sourceNetwork;
         relay = new DreamWifiRelay(pairingCode, receiverAccessToken, sourceToken, enrolledSourceId, sourceOnly, sourceNetwork, controlNetwork, sourceName, sourceLatitude, sourceLongitude, new DreamWifiRelay.Listener() {
             @Override public void onStatus(String message) {
                 if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("captive portal redirect detected")) {

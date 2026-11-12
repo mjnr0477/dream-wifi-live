@@ -53,6 +53,8 @@ async function main() {
 
   try {
     source = await connect(url);
+    // The source intentionally has one listener per simultaneous stream waiter in this test.
+    source.setMaxListeners(0);
     const sourceRegistered = waitMessage(source, m => m.type === "registered" && m.role === "source", "source registration");
     const firstCodePromise = waitMessage(source, m => m.type === "pairing-code", "initial pairing code");
     source.send(JSON.stringify({
@@ -119,7 +121,7 @@ async function main() {
 
     // Exercise source routing for every live receiver at once. The server must
     // keep each receiver's stream attached to its own paired source session.
-    const pendingOpens = clients.map((client, i) => {
+    const pendingOpens = clients.map(async (client, i) => {
       const id = "multi-user-stream-" + i;
       const sourceOpen = waitMessage(source, m => m.type === "tcp-open" && m.id === id, "source stream " + i);
       const ownerOpen = waitMessage(client, m => m.type === "tcp-opened" && m.id === id, "receiver stream acknowledgement " + i);
@@ -130,11 +132,11 @@ async function main() {
         port: 443,
         sourceId: "multi-receiver-source"
       }));
-      return Promise.all([sourceOpen, ownerOpen]).then(([open, acknowledged]) => {
-        assert.equal(open.port, 443);
-        assert.equal(acknowledged.id, id);
-        source.send(JSON.stringify({ type: "tcp-opened", id }));
-      });
+      const open = await sourceOpen;
+      assert.equal(open.port, 443);
+      source.send(JSON.stringify({ type: "tcp-opened", id }));
+      const acknowledged = await ownerOpen;
+      assert.equal(acknowledged.id, id);
     });
     await Promise.all(pendingOpens);
 

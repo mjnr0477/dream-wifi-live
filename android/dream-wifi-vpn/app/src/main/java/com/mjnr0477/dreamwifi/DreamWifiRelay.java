@@ -113,7 +113,10 @@ final class DreamWifiRelay {
                 .readTimeout(0, TimeUnit.MILLISECONDS);
         // Keep the control WebSocket on validated cellular data when available, while
         // individual destination sockets below remain bound to the Quant Wi-Fi network.
-        if (sourceOnly && controlNetwork != null) {
+        if (controlNetwork != null) {
+            // Keep the cloud control WebSocket on a verified route for both source
+            // and receiver roles. This app is excluded from its own VPN, so the
+            // control socket must not rely on the tunneled/default network.
             builder.socketFactory(controlNetwork.getSocketFactory());
             builder.dns(hostname -> Arrays.asList(controlNetwork.getAllByName(hostname)));
         }

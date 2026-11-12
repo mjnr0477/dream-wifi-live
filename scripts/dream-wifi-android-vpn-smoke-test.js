@@ -71,7 +71,7 @@ assert.match(service, /isUsableSourceNetwork\(manager, network\)/);
 assert.match(service, /hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)\) return active/);
 assert.match(activity, /Dream Wi-Fi cannot request a sharing code until this phone has a validated Wi-Fi or mobile-data connection to the service/);
 assert.match(activity, /findValidatedInternetNetwork\(\)/, "Source enrollment must select a validated Android network.");
-assert.match(activity, /enrollmentNetwork\.openConnection\(url\)/, "Source enrollment HTTP must use the selected validated network.");
+assert.match(activity, /network\.openConnection\(url\)/, "Source enrollment HTTP must use the selected validated network.");
 assert.match(service, /EXTRA_SOURCE_NETWORK/);
 assert.match(service, /SERVICE_STATE_PREFS/);
 assert.match(service, /MODE_RECEIVER/);

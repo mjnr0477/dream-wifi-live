@@ -49,11 +49,11 @@ jobs:
           gradle-version: "8.9"
       - name: Build debug APK
         working-directory: android/dream-wifi-vpn
-        run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}" :app:assembleDebug
+        run: gradle --no-daemon -PDREAM_WIFI_BASE_URL="${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live-cxah.onrender.com' }}" :app:assembleDebug
       - name: Validate signed release APK/AAB with an ephemeral CI-only key
         working-directory: android/dream-wifi-vpn
         env:
-          DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live.onrender.com' }}
+          DREAM_WIFI_BASE_URL: ${{ vars.DREAM_WIFI_BASE_URL || 'https://dream-wifi-live-cxah.onrender.com' }}
         run: |
           set -euo pipefail
           keystore="$RUNNER_TEMP/dream-wifi-ci-only.jks"

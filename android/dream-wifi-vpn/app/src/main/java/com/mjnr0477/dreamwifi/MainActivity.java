@@ -597,7 +597,13 @@ public final class MainActivity extends Activity {
                 pendingSourceLatitude = null;
                 pendingSourceLongitude = null;
             }
-            performSourceEnrollment();
+            Network enrollmentNetwork = findValidatedInternetNetwork();
+            if (enrollmentNetwork == null) {
+                connectButton.setEnabled(true);
+                status.setText("The validated internet connection changed. Reconnect to Wi-Fi or mobile data and try sharing again.");
+                return;
+            }
+            performSourceEnrollment(enrollmentNetwork);
         }
     }
 

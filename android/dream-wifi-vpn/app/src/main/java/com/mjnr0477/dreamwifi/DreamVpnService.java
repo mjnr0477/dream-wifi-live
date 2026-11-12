@@ -211,24 +211,14 @@ public final class DreamVpnService extends VpnService {
                     updateNotification("This phone is already connected as a receiver.");
                     return START_STICKY;
                 }
-                android.content.SharedPreferences pairingPrefs =
-                        getSharedPreferences(PAIRING_CODE_PREFS, MODE_PRIVATE);
-                String activeCode = pairingPrefs.getString(KEY_PAIRING_CODE, "");
-                long activeCodeExpiry = pairingPrefs.getLong(KEY_PAIRING_CODE_EXPIRES_AT, 0L);
-                if (activeCode != null && activeCode.matches("[A-F0-9]{12}")
-                        && activeCodeExpiry > System.currentTimeMillis()) {
-                    updateNotification("This phone is already sharing. Its current pairing code remains active.");
-                    return START_STICKY;
-                }
-                // The server's one-time code expires. Reconnect the source endpoint
-                // to request a fresh code instead of leaving the Share button inert.
-                if (activeCode != null && !activeCode.isEmpty() && activeCodeExpiry > 0L) {
-                    updateNotification("Refreshing the expired source pairing code…");
-                    stopTunnel();
+                // A Share tap during an existing source session explicitly rotates the
+                // single-use code instead of reconnecting and leaving the old code stale.
+                if (relay.requestPairingCode()) {
+                    updateNotification("This phone is already sharing. A fresh code is being issued for the next receiver.");
                 } else {
-                    updateNotification("Source sharing is still connecting. Waiting for its pairing code…");
-                    return START_STICKY;
+                    updateNotification("Source sharing is still connecting. The code will appear when the relay is online.");
                 }
+                return START_STICKY;
             } else {
                 updateNotification("Switching Dream Wi-Fi connection role…");
                 stopTunnel();

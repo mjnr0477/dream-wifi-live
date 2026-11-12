@@ -105,6 +105,7 @@ assert.match(service, /requestPairingCode\(\)/, "Repeated Share actions must ref
 assert.match(nativeRelay, /sourceNetwork\.getAllByName\(host\)/, "Source destination DNS must use the same upstream network as forwarded sockets.");
 assert.match(nativeRelay, /sourceNetwork\.bindSocket\(socket\)/, "Source TCP traffic must bind to the selected upstream network.");
 assert.match(service, /findAlternateControlNetwork\(sourceOnly \? sourceNetwork : null\)/, "Both receiver and source control channels must select a validated network.");
+assert.match(service, /if \(sourceOnly && controlNetwork == null\) controlNetwork = sourceNetwork;/, "A source with one validated route must bind control traffic to that route.");
 assert.match(nativeRelay, /if \(controlNetwork != null\)/, "The cloud WebSocket must bind to the selected validated control network.");
 assert.doesNotMatch(nativeRelay, /OkHttpClient\.Builder[\s\S]{0,500}if \(sourceOnly && controlNetwork != null\)/, "Receiver WebSocket setup must not be gated to source mode.");
 assert.match(nativeRelay, /putSafe\("role", "client"\)/);

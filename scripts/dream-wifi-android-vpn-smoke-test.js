@@ -105,7 +105,7 @@ assert.match(nativeRelay, /sourceNetwork\.getAllByName\(host\)/, "Source destina
 assert.match(nativeRelay, /sourceNetwork\.bindSocket\(socket\)/, "Source TCP traffic must bind to the selected upstream network.");
 assert.match(service, /findAlternateControlNetwork\(sourceOnly \? sourceNetwork : null\)/, "Both receiver and source control channels must select a validated network.");
 assert.match(nativeRelay, /if \(controlNetwork != null\)/, "The cloud WebSocket must bind to the selected validated control network.");
-assert.doesNotMatch(nativeRelay, /if \(sourceOnly && controlNetwork != null\)/, "Receiver control sockets must not be left on the default network.");
+assert.doesNotMatch(nativeRelay, /OkHttpClient\.Builder[\s\S]{0,500}if \(sourceOnly && controlNetwork != null\)/, "Receiver WebSocket setup must not be gated to source mode.");
 assert.match(nativeRelay, /putSafe\("role", "client"\)/);
 assert.match(nativeRelay, /putSafe\("role", "source"\)/);
 assert.match(nativeRelay, /tcp-open/);

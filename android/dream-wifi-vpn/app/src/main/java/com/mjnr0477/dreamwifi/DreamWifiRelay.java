@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -45,7 +46,7 @@ final class DreamWifiRelay {
     static final int LOCAL_PROXY_PORT = 1081;
     private static final int MAX_CHUNK = 12 * 1024;
     private static final int MAX_UDP_BYTES = 8192;
-    private static final int MAX_STREAMS = 8;
+    private static final int MAX_STREAMS = 32;
 
     interface Listener {
         void onStatus(String message);
@@ -67,6 +68,8 @@ final class DreamWifiRelay {
     private final ConcurrentHashMap<String, Stream> ownerStreams = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Socket> sourceStreams = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, UdpAssociation> udpAssociations = new ConcurrentHashMap<>();
+    // Bounds source-side TCP work across all receivers, including connections still opening.
+    private final Semaphore sourceStreamSlots = new Semaphore(MAX_STREAMS, true);
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean readyNotified = new AtomicBoolean(false);
     private final AtomicBoolean ownerRetryScheduled = new AtomicBoolean(false);
@@ -145,6 +148,13 @@ final class DreamWifiRelay {
         }
         sendSource(new SafeJson().putSafe("type", "revoke-pairings").toString());
         status("Requested revocation of all receiver pairings for this source.");
+    }
+
+    boolean requestPairingCode() {
+        if (!sourceOnly || !sourceReady || sourceSocket == null) return false;
+        boolean sent = sendSource(new SafeJson().putSafe("type", "request-pairing-code").toString());
+        if (sent) status("Requesting a fresh one-time sharing code.");
+        return sent;
     }
 
     void setSelectedSourceId(String sourceId) {
@@ -686,11 +696,14 @@ final class DreamWifiRelay {
         String host = message.optString("host", "").trim();
         int port = message.optInt("port", 0);
         Socket socket = null;
+        boolean streamSlotAcquired = false;
         try {
             if (id.isEmpty() || host.isEmpty() || host.length() > 253 || port < 1 || port > 65535) {
                 sendSourceError(id, "Invalid or unsupported destination."); return;
             }
-            if (sourceStreams.size() >= MAX_STREAMS) { sendSourceError(id, "Source stream limit reached."); return; }
+            // Acquire before DNS/connect so concurrent receivers cannot race past the cap.
+            if (!sourceStreamSlots.tryAcquire()) { sendSourceError(id, "Source stream capacity is busy. Retry shortly."); return; }
+            streamSlotAcquired = true;
             InetAddress target = resolvePublicAddress(host);
             socket = new Socket();
             if (sourceOnly && sourceNetwork != null) sourceNetwork.bindSocket(socket);
@@ -719,6 +732,7 @@ final class DreamWifiRelay {
                 try { socket.close(); } catch (Exception ignored) {}
             }
             if (running.get() && sourceReady) sendSource(new SafeJson().putSafe("type", "tcp-close").putSafe("id", id).toString());
+            if (streamSlotAcquired) sourceStreamSlots.release();
         }
     }
 
